@@ -20,6 +20,8 @@ const DEFAULTS = {
   barCount: 4,
 };
 
+const formatGain = (gain: number): string => gain.toFixed(1);
+
 function createSelect({
   id,
   label,
@@ -120,6 +122,7 @@ function renderApp(root: HTMLElement): void {
       const lower = waveform.min;
       const amplitude = canvasCssHeight * 0.3;
       const midY = canvasCssHeight / 2;
+      const displayGain = waveform.gain;
 
       canvasContext.save();
       canvasContext.beginPath();
@@ -128,7 +131,8 @@ function renderApp(root: HTMLElement): void {
       for (let i = 0; i <= waveform.lastIndex; i += 1) {
         const x = (i / Math.max(1, points - 1)) * canvasCssWidth;
         const sample = Math.max(-1, Math.min(1, upper[i] || 0));
-        const y = midY + sample * amplitude;
+        const scaled = Math.max(-1, Math.min(1, sample * displayGain));
+        const y = midY + scaled * amplitude;
         if (!started) {
           canvasContext.moveTo(x, y);
           started = true;
@@ -140,7 +144,8 @@ function renderApp(root: HTMLElement): void {
       for (let i = waveform.lastIndex; i >= 0; i -= 1) {
         const x = (i / Math.max(1, points - 1)) * canvasCssWidth;
         const sample = Math.max(-1, Math.min(1, lower[i] || 0));
-        const y = midY + sample * amplitude;
+        const scaled = Math.max(-1, Math.min(1, sample * displayGain));
+        const y = midY + scaled * amplitude;
         canvasContext.lineTo(x, y);
       }
 
@@ -261,7 +266,7 @@ function renderApp(root: HTMLElement): void {
     playbackBeats,
   }: MetronomeSchedule): void => {
     stopProgressAnimation();
-    microphone.reset();
+    microphone.clearPeaks();
     setProgress(0);
 
     if (playbackDuration <= 0) {
@@ -369,6 +374,55 @@ function renderApp(root: HTMLElement): void {
     ],
   });
 
+  const gainControls = document.createElement('div');
+  gainControls.className = 'gain-controls';
+
+  const autoGainLabel = document.createElement('label');
+  autoGainLabel.className = 'gain-controls__auto';
+
+  const autoGainCheckbox = document.createElement('input');
+  autoGainCheckbox.type = 'checkbox';
+  autoGainCheckbox.id = 'autoGain';
+  autoGainCheckbox.name = 'autoGain';
+  autoGainCheckbox.className = 'gain-controls__checkbox';
+  autoGainCheckbox.checked = microphone.isAutoGainEnabled();
+
+  const autoGainText = document.createElement('span');
+  autoGainText.textContent = 'Auto gain';
+
+  autoGainLabel.append(autoGainCheckbox, autoGainText);
+
+  const manualGainLabel = document.createElement('label');
+  manualGainLabel.className = 'gain-controls__manual';
+  manualGainLabel.setAttribute('for', 'manualGain');
+
+  const manualGainTitle = document.createElement('span');
+  manualGainTitle.className = 'control__label';
+  manualGainTitle.textContent = 'Manual gain';
+
+  const manualGainWrapper = document.createElement('div');
+  manualGainWrapper.className = 'gain-controls__slider';
+
+  const manualGainSlider = document.createElement('input');
+  manualGainSlider.type = 'range';
+  manualGainSlider.id = 'manualGain';
+  manualGainSlider.name = 'manualGain';
+  manualGainSlider.className = 'gain-controls__sliderInput';
+  const manualRange = microphone.getManualGainRange();
+  manualGainSlider.min = manualRange.min.toFixed(1);
+  manualGainSlider.max = manualRange.max.toFixed(1);
+  manualGainSlider.step = '0.1';
+  manualGainSlider.value = formatGain(microphone.getManualGain());
+
+  const manualGainValue = document.createElement('span');
+  manualGainValue.className = 'gain-controls__value';
+  manualGainValue.textContent = formatGain(Number(manualGainSlider.value));
+
+  manualGainWrapper.append(manualGainSlider, manualGainValue);
+  manualGainLabel.append(manualGainTitle, manualGainWrapper);
+
+  gainControls.append(autoGainLabel, manualGainLabel);
+
   const tempoSelect = tempoControl.querySelector<HTMLSelectElement>('select');
   const beatsPerBarSelect =
     beatsPerBarControl.querySelector<HTMLSelectElement>('select');
@@ -389,6 +443,32 @@ function renderApp(root: HTMLElement): void {
   };
   beatsPerBarSelect.addEventListener('change', updateBarGuides);
   barCountSelect.addEventListener('change', updateBarGuides);
+
+  const updateManualGainState = () => {
+    const autoEnabled = autoGainCheckbox.checked;
+    manualGainSlider.disabled = autoEnabled;
+    manualGainLabel.classList.toggle('gain-controls__manual--disabled', autoEnabled);
+    manualGainValue.textContent = formatGain(Number(manualGainSlider.value));
+  };
+
+  autoGainCheckbox.addEventListener('change', () => {
+    const autoEnabled = autoGainCheckbox.checked;
+    microphone.setAutoGain(autoEnabled);
+    if (!autoEnabled) {
+      microphone.setManualGain(Number(manualGainSlider.value));
+    }
+    updateManualGainState();
+    renderProgressCanvas();
+  });
+
+  manualGainSlider.addEventListener('input', () => {
+    const manualValue = Number(manualGainSlider.value);
+    microphone.setManualGain(manualValue);
+    manualGainValue.textContent = formatGain(manualValue);
+    renderProgressCanvas();
+  });
+
+  updateManualGainState();
   requestAnimationFrame(() => {
     updateBarGuides();
     initializeCanvas();
@@ -458,6 +538,9 @@ function renderApp(root: HTMLElement): void {
 
     try {
       const context = getMetronomeContext();
+      if (!autoGainCheckbox.checked) {
+        microphone.setManualGain(Number(manualGainSlider.value));
+      }
       await microphone.start(context);
     } catch (error) {
       console.error('Unable to prepare microphone input', error);
@@ -558,7 +641,14 @@ function renderApp(root: HTMLElement): void {
   window.addEventListener('keydown', handleTransportShortcut);
   setTransportState('idle');
 
-  form.append(tempoControl, beatsPerBarControl, barCountControl, transport);
+  gainControls.style.display = 'none';
+  form.append(
+    tempoControl,
+    beatsPerBarControl,
+    barCountControl,
+    gainControls,
+    transport,
+  );
   page.append(heading, form, progressSection);
 
   root.replaceChildren(page);

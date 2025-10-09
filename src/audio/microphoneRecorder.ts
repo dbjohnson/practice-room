@@ -1,16 +1,19 @@
 const WAVEFORM_RESOLUTION = 1024;
 const ANALYSER_FFT_SIZE = 2048;
-const TARGET_WAVEFORM_PEAK = 0.9;
-const GAIN_SMOOTHING_SECONDS = 4;
+const TARGET_WAVEFORM_PEAK = 0.5;
+const GAIN_SMOOTHING = 0.003;
 const SILENCE_THRESHOLD = 0.02;
-const MIN_GAIN = 1;
-const MAX_GAIN = 8;
+const AUTO_GAIN_MIN = 1;
+const AUTO_GAIN_MAX = 4;
+const MANUAL_GAIN_MIN = 0.5;
+const MANUAL_GAIN_MAX = 6;
 const SILENCE_RELEASE_FACTOR = 0.95;
 
 export interface WaveformPeaks {
   min: Float32Array;
   max: Float32Array;
   lastIndex: number;
+  gain: number;
 }
 
 export class MicrophoneRecorder {
@@ -29,8 +32,11 @@ export class MicrophoneRecorder {
   private readonly maxPeaks = new Float32Array(WAVEFORM_RESOLUTION);
   private readonly filled = new Uint8Array(WAVEFORM_RESOLUTION);
   private lastIndex = -1;
-  private gain = MIN_GAIN;
+  private autoGainEnabled = true;
+  private gain = AUTO_GAIN_MIN;
+  private manualGain = 1;
   private lastGainUpdate = 0;
+  private lastSampleTime = 0;
 
   async start(context: AudioContext): Promise<void> {
     if (!this.supported) {
@@ -69,8 +75,9 @@ export class MicrophoneRecorder {
       this.source.connect(this.analyser);
     }
 
-    this.gain = MIN_GAIN;
-    this.lastGainUpdate = context.currentTime;
+    this.gain = this.autoGainEnabled ? AUTO_GAIN_MIN : this.manualGain;
+    this.lastSampleTime = context.currentTime;
+    this.lastGainUpdate = this.lastSampleTime;
     this.capturing = Boolean(this.analyser);
   }
 
@@ -85,6 +92,7 @@ export class MicrophoneRecorder {
     }
 
     this.analyser.getFloatTimeDomainData(this.analyserBuffer);
+    this.lastSampleTime = now;
 
     let min = 1;
     let max = -1;
@@ -103,16 +111,20 @@ export class MicrophoneRecorder {
     );
 
     const peak = Math.max(Math.abs(min), Math.abs(max));
-    const desiredGain = peak >= SILENCE_THRESHOLD
-      ? Math.min(MAX_GAIN, Math.max(MIN_GAIN, TARGET_WAVEFORM_PEAK / peak))
-      : Math.max(MIN_GAIN, this.gain * SILENCE_RELEASE_FACTOR);
+    let desiredGain: number;
+    if (this.autoGainEnabled) {
+      desiredGain =
+        peak >= SILENCE_THRESHOLD
+          ? Math.min(
+              AUTO_GAIN_MAX,
+              Math.max(AUTO_GAIN_MIN, TARGET_WAVEFORM_PEAK / peak),
+            )
+          : Math.max(AUTO_GAIN_MIN, this.gain * SILENCE_RELEASE_FACTOR);
+    } else {
+      desiredGain = this.manualGain;
+    }
 
-    const deltaTime = this.lastGainUpdate > 0 ? Math.max(0, now - this.lastGainUpdate) : 0;
-    this.lastGainUpdate = now;
-    const smoothing = deltaTime <= 0
-      ? 1
-      : 1 - Math.exp(-deltaTime / GAIN_SMOOTHING_SECONDS);
-    this.gain += (desiredGain - this.gain) * smoothing;
+    this.gain += (desiredGain - this.gain) * GAIN_SMOOTHING;
 
     const scaledMin = Math.max(-1, Math.min(1, min * this.gain));
     const scaledMax = Math.max(-1, Math.min(1, max * this.gain));
@@ -132,12 +144,17 @@ export class MicrophoneRecorder {
   }
 
   reset(): void {
+    this.clearPeaks();
+    this.gain = this.autoGainEnabled ? AUTO_GAIN_MIN : this.manualGain;
+    this.lastSampleTime = 0;
+    this.lastGainUpdate = 0;
+  }
+
+  clearPeaks(): void {
     this.minPeaks.fill(0);
     this.maxPeaks.fill(0);
     this.filled.fill(0);
     this.lastIndex = -1;
-    this.gain = MIN_GAIN;
-    this.lastGainUpdate = 0;
   }
 
   async stop(): Promise<void> {
@@ -159,7 +176,41 @@ export class MicrophoneRecorder {
       min: this.minPeaks,
       max: this.maxPeaks,
       lastIndex: this.lastIndex,
+      gain: this.gain,
     };
+  }
+
+  setAutoGain(enabled: boolean): void {
+    this.autoGainEnabled = enabled;
+    if (this.autoGainEnabled) {
+      this.lastGainUpdate = this.lastSampleTime;
+    } else {
+      this.gain = this.manualGain;
+      this.lastGainUpdate = this.lastSampleTime;
+    }
+  }
+
+  isAutoGainEnabled(): boolean {
+    return this.autoGainEnabled;
+  }
+
+  setManualGain(gain: number): void {
+    this.manualGain = Math.min(
+      MANUAL_GAIN_MAX,
+      Math.max(MANUAL_GAIN_MIN, gain),
+    );
+    if (!this.autoGainEnabled) {
+      this.gain = this.manualGain;
+      this.lastGainUpdate = this.lastSampleTime;
+    }
+  }
+
+  getManualGain(): number {
+    return this.manualGain;
+  }
+
+  getManualGainRange(): { min: number; max: number } {
+    return { min: MANUAL_GAIN_MIN, max: MANUAL_GAIN_MAX };
   }
 
   private disconnectNodes(): void {

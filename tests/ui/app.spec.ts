@@ -86,6 +86,10 @@ describe('Tempo Trainer transport controls', () => {
       document.querySelector<HTMLButtonElement>('#playPauseButton');
     const progressCanvas =
       document.querySelector<HTMLCanvasElement>('.progress__canvas');
+    const autoGainCheckbox =
+      document.querySelector<HTMLInputElement>('#autoGain');
+    const manualGainSlider =
+      document.querySelector<HTMLInputElement>('#manualGain');
 
     expect(tempoSelect?.value).toBe('90');
     expect(beatsSelect?.value).toBe('4');
@@ -93,6 +97,37 @@ describe('Tempo Trainer transport controls', () => {
     expect(progressCanvas).toBeTruthy();
     expect(playPauseButton?.textContent?.trim()).toBe('Play');
     expect(playPauseButton?.dataset.state).toBe('idle');
+    expect(autoGainCheckbox?.checked).toBe(true);
+    expect(manualGainSlider?.disabled).toBe(true);
+  });
+
+  test('auto gain toggle enables manual gain slider', async () => {
+    await import('../../src/main.ts');
+
+    const autoGainCheckbox =
+      document.querySelector<HTMLInputElement>('#autoGain');
+    const manualGainSlider =
+      document.querySelector<HTMLInputElement>('#manualGain');
+    const manualGainValue =
+      document.querySelector<HTMLSpanElement>('.gain-controls__value');
+
+    expect(autoGainCheckbox).toBeTruthy();
+    expect(manualGainSlider).toBeTruthy();
+
+    if (!autoGainCheckbox || !manualGainSlider || !manualGainValue) {
+      throw new Error('Gain controls not initialised');
+    }
+
+    autoGainCheckbox.checked = false;
+    autoGainCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+
+    expect(autoGainCheckbox.checked).toBe(false);
+    expect(manualGainSlider.disabled).toBe(false);
+
+    manualGainSlider.value = '2.5';
+    manualGainSlider.dispatchEvent(new Event('input', { bubbles: true }));
+
+    expect(manualGainValue.textContent).toBe('2.5');
   });
 
   test('play/pause button starts metronome and toggles transport state', async () => {
