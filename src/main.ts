@@ -118,7 +118,7 @@ function renderApp(root: HTMLElement): void {
       const points = waveform.min.length;
       const upper = waveform.max;
       const lower = waveform.min;
-      const amplitude = canvasCssHeight * 0.45;
+      const amplitude = canvasCssHeight * 0.3;
       const midY = canvasCssHeight / 2;
 
       canvasContext.save();
