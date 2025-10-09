@@ -110,37 +110,8 @@ function renderApp(root: HTMLElement): void {
     const trackHeight = Math.max(1, Math.min(2, canvasCssHeight * 0.02));
     const trackY = (canvasCssHeight - trackHeight) / 2;
 
-    canvasContext.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    canvasContext.fillStyle = 'rgba(255, 255, 255, 0.24)';
     canvasContext.fillRect(0, trackY, canvasCssWidth, trackHeight);
-
-    if (progressBeatsPerBar > 0 && progressBarCount > 0) {
-      canvasContext.save();
-      const totalBeats = progressBeatsPerBar * progressBarCount;
-      const beatWidth =
-        totalBeats > 0 ? canvasCssWidth / totalBeats : canvasCssWidth;
-
-      canvasContext.fillStyle = 'rgba(255, 255, 255, 0.18)';
-      const beatLineHeight = canvasCssHeight * 0.25;
-      const beatLineY = (canvasCssHeight - beatLineHeight) / 2;
-      for (let beat = 1; beat < totalBeats; beat += 1) {
-        if (beat % progressBeatsPerBar === 0) {
-          continue;
-        }
-        const beatX = Math.round(beat * beatWidth) + 0.5;
-        canvasContext.fillRect(beatX, beatLineY, 1, beatLineHeight);
-      }
-
-      canvasContext.fillStyle = 'rgba(255, 255, 255, 0.28)';
-      const barWidth = beatWidth * progressBeatsPerBar;
-      const barLineHeight = canvasCssHeight * 0.75;
-      const barLineY = (canvasCssHeight - barLineHeight) / 2;
-
-      for (let bar = 0; bar <= progressBarCount; bar += 1) {
-        const x = Math.round(bar * barWidth) + 0.5;
-        canvasContext.fillRect(x, barLineY, 1, barLineHeight);
-      }
-      canvasContext.restore();
-    }
 
     const waveform = microphone.getPeaks();
     if (waveform.lastIndex >= 0) {
@@ -179,6 +150,35 @@ function renderApp(root: HTMLElement): void {
       canvasContext.lineWidth = Math.max(1, canvasCssHeight * 0.004);
       canvasContext.strokeStyle = 'rgba(223, 235, 255, 0.5)';
       canvasContext.stroke();
+      canvasContext.restore();
+    }
+
+    if (progressBeatsPerBar > 0 && progressBarCount > 0) {
+      canvasContext.save();
+      const totalBeats = progressBeatsPerBar * progressBarCount;
+      const beatWidth =
+        totalBeats > 0 ? canvasCssWidth / totalBeats : canvasCssWidth;
+
+      canvasContext.fillStyle = 'rgba(255, 194, 122, 0.45)';
+      const beatLineHeight = canvasCssHeight * 0.25;
+      const beatLineY = (canvasCssHeight - beatLineHeight) / 2;
+      for (let beat = 1; beat < totalBeats; beat += 1) {
+        if (beat % progressBeatsPerBar === 0) {
+          continue;
+        }
+        const beatX = Math.round(beat * beatWidth) + 0.5;
+        canvasContext.fillRect(beatX, beatLineY, 1, beatLineHeight);
+      }
+
+      canvasContext.fillStyle = 'rgba(255, 226, 133, 0.75)';
+      const barWidth = beatWidth * progressBeatsPerBar;
+      const barLineHeight = canvasCssHeight * 0.75;
+      const barLineY = (canvasCssHeight - barLineHeight) / 2;
+
+      for (let bar = 0; bar <= progressBarCount; bar += 1) {
+        const x = Math.round(bar * barWidth) + 0.5;
+        canvasContext.fillRect(x, barLineY, 1, barLineHeight);
+      }
       canvasContext.restore();
     }
 
@@ -261,6 +261,8 @@ function renderApp(root: HTMLElement): void {
     playbackBeats,
   }: MetronomeSchedule): void => {
     stopProgressAnimation();
+    microphone.reset();
+    setProgress(0);
 
     if (playbackDuration <= 0) {
       setProgress(1);

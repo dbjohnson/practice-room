@@ -69,6 +69,7 @@ describe('Tempo Trainer transport controls', () => {
     startMetronomeMock.mockReset();
     stopMetronomeMock.mockReset();
     getMetronomeContextMock.mockClear();
+    getMetronomeContextMock.mockReturnValue({} as AudioContext);
     startMetronomeMock.mockResolvedValue(undefined);
     stopMetronomeMock.mockResolvedValue(undefined);
     vi.resetModules();

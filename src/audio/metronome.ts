@@ -28,6 +28,7 @@ type ScheduledClick = {
   oscillator: OscillatorNode;
   gain: GainNode;
   startTime: number;
+  stopTime: number;
 };
 
 let audioContext: AudioContext | null = null;
@@ -67,7 +68,12 @@ function scheduleClick(
   oscillator.start(when);
   oscillator.stop(when + CLICK_DURATION);
 
-  scheduled.push({ oscillator, gain, startTime: when });
+  scheduled.push({
+    oscillator,
+    gain,
+    startTime: when,
+    stopTime: when + CLICK_DURATION,
+  });
 }
 
 export async function stopMetronome(): Promise<void> {
@@ -118,79 +124,115 @@ export async function startMetronome({
     totalBeats,
   });
 
-  const scheduledClicks: ScheduledClick[] = [];
+  let scheduledClicks: ScheduledClick[] = [];
+  let stopped = false;
+  let loopTimer: ReturnType<typeof setTimeout> | null = null;
+  let resolvePlayback: (() => void) | null = null;
 
-  for (let beat = 0; beat < totalBeats; beat += 1) {
-    const beatTime = startTime + beat * secondsPerBeat;
-    const isAccent = beat % beatsPerBar === 0;
-    scheduleClick(ctx, beatTime, isAccent, scheduledClicks);
-  }
+  const finalize = async (forceStop: boolean) => {
+    if (stopped) {
+      return;
+    }
 
-  const totalDuration =
-    totalBeats * secondsPerBeat + CLICK_DURATION + START_DELAY;
+    stopped = true;
+
+    if (loopTimer !== null) {
+      globalThis.clearTimeout(loopTimer);
+      loopTimer = null;
+    }
+
+    const now = ctx.currentTime;
+
+    for (const { oscillator, gain, startTime: clickStart, stopTime } of scheduledClicks) {
+      try {
+        const stopAt = forceStop ? Math.max(now, clickStart) : stopTime;
+        oscillator.stop(stopAt);
+      } catch {
+        // ignore oscillator state errors
+      }
+
+      try {
+        gain.gain.cancelScheduledValues(0);
+        gain.gain.setValueAtTime(0.0001, now);
+      } catch {
+        // ignore gain scheduling errors
+      }
+
+      try {
+        oscillator.disconnect();
+      } catch {
+        // ignore disconnect errors
+      }
+
+      try {
+        gain.disconnect();
+      } catch {
+        // ignore disconnect errors
+      }
+    }
+
+    scheduledClicks = [];
+    activeCleanup = null;
+    resolvePlayback?.();
+  };
+
+  activeCleanup = () => finalize(true);
+
+  const pruneOldClicks = () => {
+    const threshold = ctx.currentTime - 1;
+    scheduledClicks = scheduledClicks.filter((click) => click.stopTime > threshold);
+  };
+
+  const scheduleLoop = (includeCountIn: boolean, loopStartTime: number) => {
+    if (stopped) {
+      return;
+    }
+
+    pruneOldClicks();
+
+    const countIn = includeCountIn ? countInBeats : 0;
+    const totalBeatsThisLoop = countIn + playbackBeats;
+    const playbackStartTime =
+      countIn > 0 ? loopStartTime + countIn * secondsPerBeat : loopStartTime;
+    const playbackDuration = playbackBeats * secondsPerBeat;
+
+    onSchedule?.({
+      audioContext: ctx,
+      startTime: loopStartTime,
+      playbackStartTime,
+      playbackDuration,
+      secondsPerBeat,
+      countInBeats: countIn,
+      beatsPerBar,
+      playbackBeats,
+      totalBeats: totalBeatsThisLoop,
+    });
+
+    for (let beat = 0; beat < totalBeatsThisLoop; beat += 1) {
+      const beatTime = loopStartTime + beat * secondsPerBeat;
+      const isAccent = beat % beatsPerBar === 0;
+      scheduleClick(ctx, beatTime, isAccent, scheduledClicks);
+    }
+
+    const nextLoopStart =
+      playbackStartTime + playbackDuration;
+
+    const lookAhead = 0.1;
+    const delayMs = Math.max(
+      0,
+      (nextLoopStart - ctx.currentTime - lookAhead) * 1000,
+    );
+
+    loopTimer = globalThis.setTimeout(() => {
+      loopTimer = null;
+      scheduleLoop(false, nextLoopStart);
+    }, delayMs);
+  };
+
+  const initialStartTime = ctx.currentTime + START_DELAY;
+  scheduleLoop(true, initialStartTime);
 
   return new Promise<void>((resolve) => {
-    let completionTimer: number | null = null;
-    let finished = false;
-    let cleanupPromise: Promise<void> | null = null;
-
-    const finalize = (forceStop: boolean): Promise<void> => {
-      if (finished) {
-        return cleanupPromise ?? Promise.resolve();
-      }
-      finished = true;
-
-      if (completionTimer !== null) {
-        globalThis.clearTimeout(completionTimer);
-        completionTimer = null;
-      }
-
-      const work = (async () => {
-        for (const { oscillator, gain, startTime: clickStart } of scheduledClicks) {
-          try {
-            const stopAt = forceStop
-              ? Math.max(ctx.currentTime, clickStart)
-              : clickStart + CLICK_DURATION;
-            oscillator.stop(stopAt);
-          } catch {
-            // ignore oscillator state errors
-          }
-
-          try {
-            gain.gain.cancelScheduledValues(0);
-            gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-          } catch {
-            // ignore gain scheduling errors
-          }
-
-          try {
-            oscillator.disconnect();
-          } catch {
-            // ignore disconnect errors
-          }
-
-          try {
-            gain.disconnect();
-          } catch {
-            // ignore disconnect errors
-          }
-        }
-
-        scheduledClicks.length = 0;
-      })().finally(() => {
-        activeCleanup = null;
-        resolve();
-      });
-
-      cleanupPromise = work;
-      return work;
-    };
-
-    activeCleanup = () => finalize(true);
-
-    const timeout = (totalDuration - (ctx.baseLatency ?? 0)) * 1000;
-    completionTimer = globalThis.setTimeout(() => {
-      void finalize(false);
-    }, Math.max(0, timeout));
+    resolvePlayback = resolve;
   });
 }
