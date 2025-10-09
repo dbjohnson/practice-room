@@ -4,10 +4,12 @@ import type { MetronomeOptions } from '../../src/audio/metronome';
 
 const startMetronomeMock = vi.fn<[MetronomeOptions], Promise<void>>();
 const stopMetronomeMock = vi.fn<[], Promise<void>>();
+const getMetronomeContextMock = vi.fn(() => ({} as AudioContext));
 
 vi.mock('../../src/audio/metronome', () => ({
   startMetronome: startMetronomeMock,
   stopMetronome: stopMetronomeMock,
+  getMetronomeContext: getMetronomeContextMock,
 }));
 
 async function flushMicrotasks(): Promise<void> {
@@ -66,6 +68,7 @@ describe('Tempo Trainer transport controls', () => {
     }
     startMetronomeMock.mockReset();
     stopMetronomeMock.mockReset();
+    getMetronomeContextMock.mockClear();
     startMetronomeMock.mockResolvedValue(undefined);
     stopMetronomeMock.mockResolvedValue(undefined);
     vi.resetModules();
@@ -118,6 +121,7 @@ describe('Tempo Trainer transport controls', () => {
     );
 
     playPauseButton?.click();
+    await flushMicrotasks();
 
     expect(startMetronomeMock).toHaveBeenCalledTimes(1);
     expect(startMetronomeMock).toHaveBeenCalledWith(
@@ -152,8 +156,10 @@ describe('Tempo Trainer transport controls', () => {
     );
 
     playPauseButton?.click();
+    await flushMicrotasks();
 
     playPauseButton?.click();
+    await flushMicrotasks();
     expect(stopMetronomeMock).toHaveBeenCalledTimes(1);
 
     resolvePlayback?.();
@@ -181,6 +187,7 @@ describe('Tempo Trainer transport controls', () => {
     window.dispatchEvent(
       new KeyboardEvent('keydown', { code: 'Space', key: ' ' }),
     );
+    await flushMicrotasks();
     expect(startMetronomeMock.mock.calls.length).toBe(initialStartCount + 1);
     expect(playPauseButton?.dataset.state).toBe('playing');
 
@@ -188,6 +195,7 @@ describe('Tempo Trainer transport controls', () => {
     window.dispatchEvent(
       new KeyboardEvent('keydown', { code: 'Space', key: ' ' }),
     );
+    await flushMicrotasks();
     expect(stopMetronomeMock.mock.calls.length).toBe(initialStopCount + 1);
 
     resolvePlayback?.();

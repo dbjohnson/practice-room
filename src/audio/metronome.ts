@@ -41,6 +41,10 @@ function getAudioContext(): AudioContext {
   return audioContext;
 }
 
+export function getMetronomeContext(): AudioContext {
+  return getAudioContext();
+}
+
 function scheduleClick(
   ctx: AudioContext,
   when: number,
@@ -64,15 +68,6 @@ function scheduleClick(
   oscillator.stop(when + CLICK_DURATION);
 
   scheduled.push({ oscillator, gain, startTime: when });
-}
-
-async function closeContext(ctx: AudioContext): Promise<void> {
-  if (ctx.state !== 'closed') {
-    await ctx.close().catch(() => undefined);
-  }
-  if (audioContext === ctx) {
-    audioContext = null;
-  }
 }
 
 export async function stopMetronome(): Promise<void> {
@@ -182,10 +177,6 @@ export async function startMetronome({
         }
 
         scheduledClicks.length = 0;
-
-        if (forceStop) {
-          await closeContext(ctx);
-        }
       })().finally(() => {
         activeCleanup = null;
         resolve();

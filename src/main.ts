@@ -1,6 +1,11 @@
 import './styles.css';
-import { startMetronome, stopMetronome } from './audio/metronome';
+import {
+  getMetronomeContext,
+  startMetronome,
+  stopMetronome,
+} from './audio/metronome';
 import type { MetronomeSchedule } from './audio/metronome';
+import { MicrophoneRecorder } from './audio/microphoneRecorder';
 
 interface TempoControlConfig {
   id: string;
@@ -70,6 +75,8 @@ function renderApp(root: HTMLElement): void {
   progressCanvas.className = 'progress__canvas';
   progressCanvas.setAttribute('aria-hidden', 'true');
 
+  const microphone = new MicrophoneRecorder();
+
   const progressContainer = document.createElement('div');
   progressContainer.className = 'progress__container';
   progressContainer.append(progressCanvas);
@@ -132,6 +139,46 @@ function renderApp(root: HTMLElement): void {
         const x = Math.round(bar * barWidth) + 0.5;
         canvasContext.fillRect(x, barLineY, 1, barLineHeight);
       }
+      canvasContext.restore();
+    }
+
+    const waveform = microphone.getPeaks();
+    if (waveform.lastIndex >= 0) {
+      const points = waveform.min.length;
+      const upper = waveform.max;
+      const lower = waveform.min;
+      const amplitude = canvasCssHeight * 0.45;
+      const midY = canvasCssHeight / 2;
+
+      canvasContext.save();
+      canvasContext.beginPath();
+
+      let started = false;
+      for (let i = 0; i <= waveform.lastIndex; i += 1) {
+        const x = (i / Math.max(1, points - 1)) * canvasCssWidth;
+        const sample = Math.max(-1, Math.min(1, upper[i] || 0));
+        const y = midY + sample * amplitude;
+        if (!started) {
+          canvasContext.moveTo(x, y);
+          started = true;
+        } else {
+          canvasContext.lineTo(x, y);
+        }
+      }
+
+      for (let i = waveform.lastIndex; i >= 0; i -= 1) {
+        const x = (i / Math.max(1, points - 1)) * canvasCssWidth;
+        const sample = Math.max(-1, Math.min(1, lower[i] || 0));
+        const y = midY + sample * amplitude;
+        canvasContext.lineTo(x, y);
+      }
+
+      canvasContext.closePath();
+      canvasContext.fillStyle = 'rgba(110, 176, 255, 0.18)';
+      canvasContext.fill();
+      canvasContext.lineWidth = Math.max(1, canvasCssHeight * 0.004);
+      canvasContext.strokeStyle = 'rgba(223, 235, 255, 0.5)';
+      canvasContext.stroke();
       canvasContext.restore();
     }
 
@@ -236,6 +283,7 @@ function renderApp(root: HTMLElement): void {
     const renderProgress = () => {
       const now = audioContext.currentTime;
       let shouldContinue = true;
+      microphone.captureSample(now, playbackStartTime, playbackDuration);
 
       if (now < playbackStartTime) {
         if (now < startTime) {
@@ -381,6 +429,7 @@ function renderApp(root: HTMLElement): void {
   const finalizePlayback = (errored: boolean) => {
     playbackPromise = null;
     stopProgressAnimation();
+    void microphone.stop();
     setCountdown(null);
     setTransportState('idle');
     if (errored || playbackStopRequested) {
@@ -391,7 +440,7 @@ function renderApp(root: HTMLElement): void {
     playbackStopRequested = false;
   };
 
-  const beginPlayback = () => {
+  const beginPlayback = async (): Promise<void> => {
     if (playbackPromise) {
       return;
     }
@@ -403,6 +452,14 @@ function renderApp(root: HTMLElement): void {
     setProgress(0);
     setCountdown(null);
     updateBarGuides();
+    microphone.reset();
+
+    try {
+      const context = getMetronomeContext();
+      await microphone.start(context);
+    } catch (error) {
+      console.error('Unable to prepare microphone input', error);
+    }
 
     const tempo = Number(tempoSelect.value);
     const beatsPerBar = Number(beatsPerBarSelect.value);
@@ -438,6 +495,7 @@ function renderApp(root: HTMLElement): void {
     if (!playbackPromise) {
       playbackStopRequested = false;
       stopProgressAnimation();
+      void microphone.stop();
       setProgress(0);
       setCountdown(null);
       setTransportState('idle');
@@ -458,13 +516,15 @@ function renderApp(root: HTMLElement): void {
     } catch {
       // handled in finalizePlayback
     }
+
+    await microphone.stop();
   };
 
   playPauseButton.addEventListener('click', () => {
     if (playbackPromise) {
       void stopPlayback();
     } else {
-      beginPlayback();
+      void beginPlayback();
     }
   });
 
@@ -489,7 +549,7 @@ function renderApp(root: HTMLElement): void {
     if (playbackPromise) {
       void stopPlayback();
     } else {
-      beginPlayback();
+      void beginPlayback();
     }
   };
 
