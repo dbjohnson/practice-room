@@ -1,55 +1,123 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
+
 import type { MetronomeOptions } from '../../src/audio/metronome';
 
 const startMetronomeMock = vi.fn<[MetronomeOptions], Promise<void>>();
+const stopMetronomeMock = vi.fn<[], Promise<void>>();
 
 vi.mock('../../src/audio/metronome', () => ({
   startMetronome: startMetronomeMock,
+  stopMetronome: stopMetronomeMock,
 }));
 
-describe('Tempo Trainer bootstrap', () => {
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+const keydownListeners: Array<EventListenerOrEventListenerObject> = [];
+const originalAddEventListener = window.addEventListener.bind(window);
+const originalRemoveEventListener = window.removeEventListener.bind(window);
+
+vi.spyOn(window, 'addEventListener').mockImplementation(
+  (
+    type: string,
+    listener: EventListenerOrEventListenerObject | null,
+    options?: boolean | AddEventListenerOptions,
+  ) => {
+    if (type === 'keydown' && listener) {
+      keydownListeners.push(listener);
+    }
+
+    return originalAddEventListener(
+      type,
+      listener as EventListenerOrEventListenerObject,
+      options as boolean | AddEventListenerOptions | undefined,
+    );
+  },
+);
+
+vi.spyOn(window, 'removeEventListener').mockImplementation(
+  (
+    type: string,
+    listener: EventListenerOrEventListenerObject | null,
+    options?: boolean | EventListenerOptions,
+  ) => {
+    if (type === 'keydown' && listener) {
+      const index = keydownListeners.indexOf(listener);
+      if (index !== -1) {
+        keydownListeners.splice(index, 1);
+      }
+    }
+
+    return originalRemoveEventListener(
+      type,
+      listener as EventListenerOrEventListenerObject,
+      options as boolean | EventListenerOptions | undefined,
+    );
+  },
+);
+
+describe('Tempo Trainer transport controls', () => {
   beforeEach(() => {
     document.body.innerHTML = '<div id="app"></div>';
+    for (const listener of keydownListeners.splice(0)) {
+      originalRemoveEventListener('keydown', listener);
+    }
     startMetronomeMock.mockReset();
+    stopMetronomeMock.mockReset();
     startMetronomeMock.mockResolvedValue(undefined);
+    stopMetronomeMock.mockResolvedValue(undefined);
     vi.resetModules();
   });
 
-  test('renders tempo, beats per bar, and bar count selectors with defaults', async () => {
+  test('renders configuration selectors and transport buttons with defaults', async () => {
     await import('../../src/main.ts');
 
     const tempoSelect = document.querySelector<HTMLSelectElement>('#tempo');
     const beatsSelect =
       document.querySelector<HTMLSelectElement>('#beatsPerBar');
     const barsSelect = document.querySelector<HTMLSelectElement>('#barCount');
-    const startButton =
-      document.querySelector<HTMLButtonElement>('#startButton');
+    const playPauseButton =
+      document.querySelector<HTMLButtonElement>('#playPauseButton');
     const progressCanvas =
       document.querySelector<HTMLCanvasElement>('.progress__canvas');
 
     expect(tempoSelect?.value).toBe('90');
     expect(beatsSelect?.value).toBe('4');
     expect(barsSelect?.value).toBe('4');
-    expect(startButton).toBeTruthy();
     expect(progressCanvas).toBeTruthy();
+    expect(playPauseButton?.textContent?.trim()).toBe('Play');
+    expect(playPauseButton?.dataset.state).toBe('idle');
   });
 
-  test('starts metronome with current selections and disables start button while playing', async () => {
+  test('play/pause button starts metronome and toggles transport state', async () => {
     await import('../../src/main.ts');
 
-    const startButton =
-      document.querySelector<HTMLButtonElement>('#startButton');
-    expect(startButton).toBeTruthy();
+    const playPauseButton =
+      document.querySelector<HTMLButtonElement>('#playPauseButton');
+    expect(playPauseButton).toBeTruthy();
 
     let resolvePlayback: (() => void) | undefined;
     startMetronomeMock.mockImplementation(
-      () =>
+      (options) =>
         new Promise<void>((resolve) => {
           resolvePlayback = resolve;
+          options.onSchedule?.({
+            audioContext: {} as AudioContext,
+            startTime: 0,
+            playbackStartTime: 0,
+            playbackDuration: 1,
+            secondsPerBeat: 1,
+            countInBeats: 4,
+            beatsPerBar: 4,
+            playbackBeats: 16,
+            totalBeats: 20,
+          });
         }),
     );
 
-    startButton?.click();
+    playPauseButton?.click();
 
     expect(startMetronomeMock).toHaveBeenCalledTimes(1);
     expect(startMetronomeMock).toHaveBeenCalledWith(
@@ -59,16 +127,71 @@ describe('Tempo Trainer bootstrap', () => {
         barCount: 4,
       }),
     );
-
-    const metronomeArgs = startMetronomeMock.mock.calls[0]?.[0];
-    expect(typeof metronomeArgs?.onSchedule).toBe('function');
-
-    expect(startButton?.disabled).toBe(true);
+    expect(playPauseButton?.textContent?.trim()).toBe('Stop');
+    expect(playPauseButton?.dataset.state).toBe('playing');
 
     resolvePlayback?.();
-    await Promise.resolve();
-    await Promise.resolve();
+    await flushMicrotasks();
 
-    expect(startButton?.disabled).toBe(false);
+    expect(playPauseButton?.textContent?.trim()).toBe('Play');
+    expect(playPauseButton?.dataset.state).toBe('idle');
+  });
+
+  test('pressing stop state on play button invokes stopMetronome and resets the transport', async () => {
+    await import('../../src/main.ts');
+
+    const playPauseButton =
+      document.querySelector<HTMLButtonElement>('#playPauseButton');
+
+    let resolvePlayback: (() => void) | undefined;
+    startMetronomeMock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolvePlayback = resolve;
+        }),
+    );
+
+    playPauseButton?.click();
+
+    playPauseButton?.click();
+    expect(stopMetronomeMock).toHaveBeenCalledTimes(1);
+
+    resolvePlayback?.();
+    await flushMicrotasks();
+
+    expect(playPauseButton?.textContent?.trim()).toBe('Play');
+  });
+
+  test('space key toggles play and pause', async () => {
+    await import('../../src/main.ts');
+
+    const playPauseButton =
+      document.querySelector<HTMLButtonElement>('#playPauseButton');
+    expect(playPauseButton).toBeTruthy();
+
+    let resolvePlayback: (() => void) | undefined;
+    startMetronomeMock.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          resolvePlayback = resolve;
+        }),
+    );
+
+    const initialStartCount = startMetronomeMock.mock.calls.length;
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'Space', key: ' ' }),
+    );
+    expect(startMetronomeMock.mock.calls.length).toBe(initialStartCount + 1);
+    expect(playPauseButton?.dataset.state).toBe('playing');
+
+    const initialStopCount = stopMetronomeMock.mock.calls.length;
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { code: 'Space', key: ' ' }),
+    );
+    expect(stopMetronomeMock.mock.calls.length).toBe(initialStopCount + 1);
+
+    resolvePlayback?.();
+    await flushMicrotasks();
+    expect(playPauseButton?.dataset.state).toBe('idle');
   });
 });

@@ -1,5 +1,5 @@
 import './styles.css';
-import { startMetronome } from './audio/metronome';
+import { startMetronome, stopMetronome } from './audio/metronome';
 import type { MetronomeSchedule } from './audio/metronome';
 
 interface TempoControlConfig {
@@ -344,31 +344,72 @@ function renderApp(root: HTMLElement): void {
     initializeCanvas();
   });
 
-  const startButton = document.createElement('button');
-  startButton.type = 'button';
-  startButton.id = 'startButton';
-  startButton.className = 'controls__button';
-  startButton.textContent = 'Start';
+  const transport = document.createElement('div');
+  transport.className = 'transport';
 
-  let isPlaying = false;
+  const playPauseButton = document.createElement('button');
+  playPauseButton.type = 'button';
+  playPauseButton.id = 'playPauseButton';
+  playPauseButton.className = 'transport__button transport__button--primary';
+  playPauseButton.textContent = 'Play';
+  playPauseButton.setAttribute('aria-label', 'Play');
+  playPauseButton.setAttribute('aria-pressed', 'false');
 
-  startButton.addEventListener('click', async () => {
-    if (isPlaying) {
+  transport.append(playPauseButton);
+
+  type TransportState = 'idle' | 'playing';
+
+  let playbackPromise: Promise<void> | null = null;
+  let playbackStopRequested = false;
+
+  const setTransportState = (state: TransportState) => {
+    playPauseButton.dataset.state = state;
+    playPauseButton.setAttribute(
+      'aria-pressed',
+      state === 'playing' ? 'true' : 'false',
+    );
+
+    if (state === 'playing') {
+      playPauseButton.textContent = 'Stop';
+      playPauseButton.setAttribute('aria-label', 'Stop');
+    } else {
+      playPauseButton.textContent = 'Play';
+      playPauseButton.setAttribute('aria-label', 'Play');
+    }
+  };
+
+  const finalizePlayback = (errored: boolean) => {
+    playbackPromise = null;
+    stopProgressAnimation();
+    setCountdown(null);
+    setTransportState('idle');
+    if (errored || playbackStopRequested) {
+      setProgress(0);
+    } else {
+      setProgress(1);
+    }
+    playbackStopRequested = false;
+  };
+
+  const beginPlayback = () => {
+    if (playbackPromise) {
       return;
     }
 
-    isPlaying = true;
-    startButton.disabled = true;
+    playbackStopRequested = false;
+    setTransportState('playing');
+
     stopProgressAnimation();
     setProgress(0);
     setCountdown(null);
+    updateBarGuides();
 
     const tempo = Number(tempoSelect.value);
     const beatsPerBar = Number(beatsPerBarSelect.value);
     const barCount = Number(barCountSelect.value);
 
     try {
-      await startMetronome({
+      playbackPromise = startMetronome({
         tempo,
         beatsPerBar,
         barCount,
@@ -376,16 +417,86 @@ function renderApp(root: HTMLElement): void {
       });
     } catch (error) {
       console.error('Unable to start metronome', error);
-    } finally {
-      stopProgressAnimation();
-      setProgress(1);
+      setTransportState('idle');
+      setProgress(0);
       setCountdown(null);
-      startButton.disabled = false;
-      isPlaying = false;
+      playbackPromise = null;
+      return;
+    }
+
+    playbackPromise
+      ?.then(() => {
+        finalizePlayback(false);
+      })
+      .catch((error) => {
+        console.error('Unable to start metronome', error);
+        finalizePlayback(true);
+      });
+  };
+
+  const stopPlayback = async () => {
+    if (!playbackPromise) {
+      playbackStopRequested = false;
+      stopProgressAnimation();
+      setProgress(0);
+      setCountdown(null);
+      setTransportState('idle');
+      return;
+    }
+
+    playbackStopRequested = true;
+    setTransportState('idle');
+
+    try {
+      await stopMetronome();
+    } catch (error) {
+      console.error('Unable to stop metronome', error);
+    }
+
+    try {
+      await playbackPromise;
+    } catch {
+      // handled in finalizePlayback
+    }
+  };
+
+  playPauseButton.addEventListener('click', () => {
+    if (playbackPromise) {
+      void stopPlayback();
+    } else {
+      beginPlayback();
     }
   });
 
-  form.append(tempoControl, beatsPerBarControl, barCountControl, startButton);
+  const handleTransportShortcut = (event: KeyboardEvent) => {
+    if (event.code !== 'Space' || event.repeat) {
+      return;
+    }
+
+    const target = event.target as HTMLElement | null;
+    if (
+      target &&
+      (target.tagName === 'INPUT' ||
+        target.tagName === 'SELECT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable)
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (playbackPromise) {
+      void stopPlayback();
+    } else {
+      beginPlayback();
+    }
+  };
+
+  window.addEventListener('keydown', handleTransportShortcut);
+  setTransportState('idle');
+
+  form.append(tempoControl, beatsPerBarControl, barCountControl, transport);
   page.append(heading, form, progressSection);
 
   root.replaceChildren(page);
