@@ -87,8 +87,7 @@ body {
 }
 
 .progress__container {
-  display: flex;
-  align-items: stretch;
+  display: grid;
   gap: 1.5rem;
 }
 
@@ -109,6 +108,7 @@ body {
     0 14px 32px rgba(4, 12, 22, 0.45);
   display: block;
 }
+
 
 .transport {
   flex: 1 0 100%;

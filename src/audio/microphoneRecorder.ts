@@ -8,6 +8,8 @@ const AUTO_GAIN_MAX = 4;
 const MANUAL_GAIN_MIN = 0.5;
 const MANUAL_GAIN_MAX = 6;
 const SILENCE_RELEASE_FACTOR = 0.95;
+const PEAK_THRESHOLD = 0.1;
+const MIN_PEAK_INTERVAL = 0.05;
 
 export interface WaveformPeaks {
   min: Float32Array;
@@ -37,6 +39,8 @@ export class MicrophoneRecorder {
   private manualGain = 1;
   private lastGainUpdate = 0;
   private lastSampleTime = 0;
+  private detectedPeaks: Array<{ time: number; amplitude: number }> = [];
+  private lastDetectedPeakTime = 0;
 
   async start(context: AudioContext): Promise<void> {
     if (!this.supported) {
@@ -129,6 +133,34 @@ export class MicrophoneRecorder {
     const scaledMin = Math.max(-1, Math.min(1, min * this.gain));
     const scaledMax = Math.max(-1, Math.min(1, max * this.gain));
 
+    const sampleRate = this.context?.sampleRate ?? 44100;
+    const bufferLength = this.analyserBuffer.length;
+    const bufferDuration = bufferLength / sampleRate;
+    const bufferStartTime = now - bufferDuration;
+
+    let peakAmplitude = 0;
+    let peakIndex = -1;
+    for (let i = 1; i < bufferLength - 1; i += 1) {
+      const sample = this.analyserBuffer[i];
+      const amplitude = Math.abs(sample);
+      if (amplitude > peakAmplitude && amplitude > PEAK_THRESHOLD) {
+        const prev = Math.abs(this.analyserBuffer[i - 1]);
+        const next = Math.abs(this.analyserBuffer[i + 1]);
+        if (amplitude >= prev && amplitude >= next) {
+          peakAmplitude = amplitude;
+          peakIndex = i;
+        }
+      }
+    }
+
+    if (peakIndex >= 0) {
+      const peakTime = bufferStartTime + (peakIndex / bufferLength) * bufferDuration;
+      if (peakTime - this.lastDetectedPeakTime >= MIN_PEAK_INTERVAL) {
+        this.lastDetectedPeakTime = peakTime;
+        this.detectedPeaks.push({ time: peakTime, amplitude: peakAmplitude });
+      }
+    }
+
     if (this.filled[index]) {
       this.minPeaks[index] = Math.min(this.minPeaks[index], scaledMin);
       this.maxPeaks[index] = Math.max(this.maxPeaks[index], scaledMax);
@@ -155,6 +187,8 @@ export class MicrophoneRecorder {
     this.maxPeaks.fill(0);
     this.filled.fill(0);
     this.lastIndex = -1;
+    this.detectedPeaks = [];
+    this.lastDetectedPeakTime = 0;
   }
 
   async stop(): Promise<void> {
@@ -211,6 +245,15 @@ export class MicrophoneRecorder {
 
   getManualGainRange(): { min: number; max: number } {
     return { min: MANUAL_GAIN_MIN, max: MANUAL_GAIN_MAX };
+  }
+
+  consumePeaks(): Array<{ time: number; amplitude: number }> {
+    if (this.detectedPeaks.length === 0) {
+      return [];
+    }
+    const peaks = this.detectedPeaks;
+    this.detectedPeaks = [];
+    return peaks;
   }
 
   private disconnectNodes(): void {

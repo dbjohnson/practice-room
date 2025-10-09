@@ -6,6 +6,7 @@ import {
 } from './audio/metronome';
 import type { MetronomeSchedule } from './audio/metronome';
 import { MicrophoneRecorder } from './audio/microphoneRecorder';
+import { TimingAnalyzer } from './audio/timingAnalyzer';
 
 interface TempoControlConfig {
   id: string;
@@ -69,30 +70,34 @@ function renderApp(root: HTMLElement): void {
   const progressSection = document.createElement('section');
   progressSection.className = 'progress';
 
-  const progressCanvas = document.createElement('canvas');
-  progressCanvas.className = 'progress__canvas';
-  progressCanvas.setAttribute('aria-hidden', 'true');
+const progressCanvas = document.createElement('canvas');
+progressCanvas.className = 'progress__canvas';
+progressCanvas.setAttribute('aria-hidden', 'true');
+
 
   const microphone = new MicrophoneRecorder();
+  const timingAnalyzer = new TimingAnalyzer();
 
-  const progressContainer = document.createElement('div');
-  progressContainer.className = 'progress__container';
-  progressContainer.append(progressCanvas);
+const progressContainer = document.createElement('div');
+progressContainer.className = 'progress__container';
+progressContainer.append(progressCanvas);
 
   progressSection.append(progressContainer);
 
-  const canvasContext = progressCanvas.getContext('2d');
-  if (!canvasContext) {
-    console.warn('Progress canvas unavailable; visuals will be limited');
-  }
+const canvasContext = progressCanvas.getContext('2d');
+if (!canvasContext) {
+  console.warn('Progress canvas unavailable; visuals will be limited');
+}
 
-  let animationFrameId: number | null = null;
-  let progressAmount = 0;
-  let canvasCssWidth = 0;
-  let canvasCssHeight = 0;
-  let countdownValue: number | null = null;
-  let progressBeatsPerBar = 0;
-  let progressBarCount = 0;
+let animationFrameId: number | null = null;
+let progressAmount = 0;
+let canvasCssWidth = 0;
+let canvasCssHeight = 0;
+let countdownValue: number | null = null;
+let progressBeatsPerBar = 0;
+let progressBarCount = 0;
+let timingWindowStart = 0;
+let timingWindowDuration = 1;
 
   const renderProgressCanvas = () => {
     if (canvasCssWidth <= 0 || canvasCssHeight <= 0) {
@@ -190,6 +195,8 @@ function renderApp(root: HTMLElement): void {
     canvasContext.fillStyle = '#f6f9ff';
     canvasContext.fillRect(indicatorLeft, 0, indicatorWidth, canvasCssHeight);
 
+    renderTimingIndicators();
+
     if (countdownValue && countdownValue > 0) {
       const text = String(countdownValue);
       const fontSize = Math.min(canvasCssHeight * 0.42, 64);
@@ -207,6 +214,49 @@ function renderApp(root: HTMLElement): void {
     }
   };
 
+  const renderTimingIndicators = () => {
+    if (!canvasContext || !canvasCssWidth || !canvasCssHeight) {
+      return;
+    }
+
+    const startTime = timingWindowStart;
+    const duration = timingWindowDuration || 1;
+    const midY = canvasCssHeight / 2;
+    const toleranceMs = TimingAnalyzer.onTimeTolerance * 1000;
+    const nearToleranceMs = toleranceMs * 2;
+
+    const evaluations = timingAnalyzer.getResolvedBeats();
+    if (!evaluations.length) {
+      return;
+    }
+
+    canvasContext.save();
+    for (const evaluation of evaluations) {
+      if (!evaluation.peakTime) {
+        continue;
+      }
+      const normalizedTime = (evaluation.peakTime - startTime) / duration;
+      const x = Math.max(0, Math.min(canvasCssWidth, normalizedTime * canvasCssWidth));
+
+      let color = '#3ddc97';
+      if (evaluation.delta !== undefined) {
+        const deltaMs = Math.abs(evaluation.delta * 1000);
+        if (deltaMs > nearToleranceMs) {
+          color = '#ff5d73';
+        } else if (deltaMs > toleranceMs) {
+          color = '#ffca63';
+        }
+      }
+
+      canvasContext.fillStyle = color;
+      canvasContext.beginPath();
+      canvasContext.arc(x, midY, 6, 0, Math.PI * 2);
+      canvasContext.fill();
+    }
+
+    canvasContext.restore();
+  };
+
   const resizeCanvas = () => {
     const rect = progressCanvas.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) {
@@ -216,7 +266,6 @@ function renderApp(root: HTMLElement): void {
 
     canvasCssWidth = rect.width;
     canvasCssHeight = rect.height;
-
     progressCanvas.width = Math.max(1, Math.round(rect.width * dpr));
     progressCanvas.height = Math.max(1, Math.round(rect.height * dpr));
 
@@ -263,6 +312,9 @@ function renderApp(root: HTMLElement): void {
   }: MetronomeSchedule): void => {
     stopProgressAnimation();
     microphone.clearPeaks();
+    timingAnalyzer.startCycle(playbackStartTime, secondsPerBeat, playbackBeats);
+    timingWindowStart = playbackStartTime;
+    timingWindowDuration = Math.max(secondsPerBeat * playbackBeats, 0.001);
     setProgress(0);
 
     if (playbackDuration <= 0) {
@@ -287,6 +339,14 @@ function renderApp(root: HTMLElement): void {
       const now = audioContext.currentTime;
       let shouldContinue = true;
       microphone.captureSample(now, playbackStartTime, playbackDuration);
+      const freshPeaks = microphone.consumePeaks();
+      if (freshPeaks.length > 0) {
+        timingAnalyzer.addPeaks(freshPeaks);
+      }
+      const beatEvaluations = timingAnalyzer.evaluate(now);
+      if (beatEvaluations.length > 0) {
+        // Timing evaluations ready for visualization
+      }
 
       if (now < playbackStartTime) {
         if (now < startTime) {
@@ -309,6 +369,8 @@ function renderApp(root: HTMLElement): void {
           shouldContinue = false;
         }
       }
+
+      renderProgressCanvas();
 
       if (shouldContinue) {
         animationFrameId = requestAnimationFrame(renderProgress);
@@ -513,6 +575,7 @@ function renderApp(root: HTMLElement): void {
     if (!errored && !playbackStopRequested) {
       setProgress(1);
     }
+    renderProgressCanvas();
     playbackStopRequested = false;
   };
 
@@ -528,6 +591,7 @@ function renderApp(root: HTMLElement): void {
     setProgress(0);
     setCountdown(null);
     updateBarGuides();
+    timingAnalyzer.reset();
     microphone.reset();
 
     try {
