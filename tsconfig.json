@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "allowJs": false,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "types": ["vite/client", "vitest/globals"],
+    "baseUrl": "./src",
+    "paths": {
+      "@audio/*": ["audio/*"],
+      "@time/*": ["time/*"],
+      "@ui/*": ["ui/*"],
+      "@lib/*": ["lib/*"]
+    }
+  },
+  "include": ["src", "tests", "vitest.config.ts", "vite.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}
