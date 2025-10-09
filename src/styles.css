@@ -87,6 +87,12 @@ body {
 }
 
 .progress__container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.progress__container {
   display: grid;
   gap: 1.5rem;
 }
@@ -106,6 +112,19 @@ body {
   background: rgba(8, 15, 27, 0.55);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08),
     0 14px 32px rgba(4, 12, 22, 0.45);
+  display: block;
+  margin: 5px;
+}
+
+.deviation__canvas {
+  width: 100%;
+  height: 160px;
+  border-radius: 16px;
+  background: rgba(8, 15, 27, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 12px 28px rgba(4, 12, 22, 0.3);
+  margin: 5px;
+  margin-top: 1.5rem;
   display: block;
 }
 

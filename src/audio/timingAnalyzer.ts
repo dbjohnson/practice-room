@@ -27,6 +27,7 @@ export class TimingAnalyzer {
 
   private beats: BeatTracking[] = [];
   private pendingPeaks: PendingPeak[] = [];
+  private cumulativeEvaluations: BeatEvaluation[] = [];
 
   startCycle(playbackStartTime: number, secondsPerBeat: number, beatCount: number): void {
     this.beats = Array.from({ length: beatCount }, (_, index) => ({
@@ -41,6 +42,7 @@ export class TimingAnalyzer {
   reset(): void {
     this.beats = [];
     this.pendingPeaks = [];
+    this.cumulativeEvaluations = [];
   }
 
   addPeaks(peaks: PendingPeak[]): void {
@@ -91,6 +93,7 @@ export class TimingAnalyzer {
           status,
         };
         evaluations.push(beat.result);
+        this.cumulativeEvaluations.push(beat.result);
       } else if (now > beat.expectedTime + window) {
         beat.result = {
           index: beat.index,
@@ -98,6 +101,7 @@ export class TimingAnalyzer {
           status: 'miss',
         };
         evaluations.push(beat.result);
+        this.cumulativeEvaluations.push(beat.result);
       }
     }
 
@@ -121,5 +125,9 @@ export class TimingAnalyzer {
     return this.beats
       .filter((beat) => beat.result !== undefined)
       .map((beat) => beat.result!) as BeatEvaluation[];
+  }
+
+  getCumulativeEvaluations(): BeatEvaluation[] {
+    return this.cumulativeEvaluations.slice();
   }
 }

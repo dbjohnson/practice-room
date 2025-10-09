@@ -78,26 +78,194 @@ progressCanvas.setAttribute('aria-hidden', 'true');
   const microphone = new MicrophoneRecorder();
   const timingAnalyzer = new TimingAnalyzer();
 
-const progressContainer = document.createElement('div');
-progressContainer.className = 'progress__container';
-progressContainer.append(progressCanvas);
+  const progressContainer = document.createElement('div');
+  progressContainer.className = 'progress__container';
+  progressContainer.append(progressCanvas);
 
   progressSection.append(progressContainer);
 
-const canvasContext = progressCanvas.getContext('2d');
-if (!canvasContext) {
-  console.warn('Progress canvas unavailable; visuals will be limited');
-}
+  const deviationCanvas = document.createElement('canvas');
+  deviationCanvas.className = 'deviation__canvas';
+  deviationCanvas.setAttribute('aria-hidden', 'true');
 
-let animationFrameId: number | null = null;
-let progressAmount = 0;
-let canvasCssWidth = 0;
-let canvasCssHeight = 0;
-let countdownValue: number | null = null;
-let progressBeatsPerBar = 0;
-let progressBarCount = 0;
-let timingWindowStart = 0;
-let timingWindowDuration = 1;
+  const deviationContext = deviationCanvas.getContext('2d');
+
+const MAX_HISTORY = 10;
+const CANVAS_PADDING = 8;
+  const beatDeviations: number[] = [];
+
+  const updateDeviationHistory = () => {
+    const results = timingAnalyzer.getResolvedBeats();
+    if (results.length <= evaluatedCount) {
+      return;
+    }
+
+    const beatDuration = currentSecondsPerBeat || 1;
+    for (let i = evaluatedCount; i < results.length; i += 1) {
+      const result = results[i];
+      const normalized =
+        result.delta !== undefined && beatDuration > 0
+          ? (result.delta ?? 0) / beatDuration
+          : 0;
+      beatDeviations.push(normalized);
+    }
+    evaluatedCount = results.length;
+
+    const maxSamples = Math.max(totalBeatsPerPattern, 1) * MAX_HISTORY;
+    if (beatDeviations.length > maxSamples) {
+      beatDeviations.splice(0, beatDeviations.length - maxSamples);
+    }
+  };
+
+  const renderDeviationCanvas = () => {
+    if (!deviationContext) {
+      return;
+    }
+
+    const width = deviationCssWidth || deviationCanvas.width;
+    const height = deviationCssHeight || deviationCanvas.height;
+    deviationContext.clearRect(0, 0, width, height);
+
+    const pad = CANVAS_PADDING;
+    const drawWidth = Math.max(width - pad * 2, 0);
+    const drawHeight = Math.max(height - pad * 2, 0);
+    if (drawWidth <= 0 || drawHeight <= 0) {
+      return;
+    }
+
+    const centerY = pad + drawHeight / 2;
+    const verticalRange = 0.5;
+    deviationContext.strokeStyle = 'rgba(255, 255, 255, 0.18)';
+    deviationContext.lineWidth = 1;
+    deviationContext.setLineDash([]);
+    deviationContext.beginPath();
+    deviationContext.moveTo(pad, centerY);
+    deviationContext.lineTo(pad + drawWidth, centerY);
+    deviationContext.stroke();
+
+    deviationContext.setLineDash([6, 6]);
+    deviationContext.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    const toleranceRatios = [0.1, 0.9];
+    for (const ratio of toleranceRatios) {
+      const y = pad + drawHeight * ratio;
+      deviationContext.beginPath();
+      deviationContext.moveTo(pad, y);
+      deviationContext.lineTo(pad + drawWidth, y);
+      deviationContext.stroke();
+    }
+    deviationContext.setLineDash([]);
+
+    const tickCount = MAX_HISTORY;
+    deviationContext.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+    deviationContext.lineWidth = 1;
+    deviationContext.beginPath();
+    const denominatorTicks = Math.max(tickCount - 1, 1);
+    for (let i = 0; i < tickCount; i += 1) {
+      const x = pad + (i / denominatorTicks) * drawWidth;
+      deviationContext.moveTo(x, centerY - 4);
+      deviationContext.lineTo(x, centerY + 4);
+    }
+    deviationContext.stroke();
+
+    if (!beatDeviations.length) {
+      return;
+    }
+
+    const windowSize = Math.max(totalBeatsPerPattern, 1);
+    const windowAverages: Array<{ average: number; averageAbs: number }> = [];
+
+    for (let windowIndex = 0; windowIndex < MAX_HISTORY; windowIndex += 1) {
+      const windowEnd = beatDeviations.length - windowIndex * windowSize;
+      const windowStart = windowEnd - windowSize;
+      if (windowEnd <= 0) {
+        break;
+      }
+      const actualStart = Math.max(0, windowStart);
+      if (actualStart >= windowEnd) {
+        break;
+      }
+      const slice = beatDeviations.slice(actualStart, windowEnd);
+      if (!slice.length) {
+        break;
+      }
+      const sum = slice.reduce((acc, value) => acc + value, 0);
+      const sumAbs = slice.reduce((acc, value) => acc + Math.abs(value), 0);
+      windowAverages.push({
+        average: sum / slice.length,
+        averageAbs: sumAbs / slice.length,
+      });
+      if (actualStart === 0 && slice.length < windowSize) {
+        break;
+      }
+    }
+
+    if (!windowAverages.length) {
+      return;
+    }
+
+    const plotLine = (
+      accessor: (item: { average: number; averageAbs: number }) => number,
+      color: string,
+    ) => {
+      const denominator = Math.max(MAX_HISTORY - 1, 1);
+
+      deviationContext.strokeStyle = color;
+      deviationContext.lineWidth = 2;
+      deviationContext.beginPath();
+      windowAverages.forEach((item, index) => {
+        const normalizedX = denominator === 0 ? 0 : index / denominator;
+        const x = pad + normalizedX * drawWidth;
+        const value = Math.max(
+          -verticalRange,
+          Math.min(verticalRange, accessor(item)),
+        );
+        const y = centerY - (value / verticalRange) * (drawHeight / 2);
+        if (index === 0) {
+          deviationContext.moveTo(x, y);
+        } else {
+          deviationContext.lineTo(x, y);
+        }
+      });
+      deviationContext.stroke();
+
+      windowAverages.forEach((item, index) => {
+        const normalizedX = denominator === 0 ? 0 : index / denominator;
+        const x = pad + normalizedX * drawWidth;
+        const value = Math.max(
+          -verticalRange,
+          Math.min(verticalRange, accessor(item)),
+        );
+        const y = centerY - (value / verticalRange) * (drawHeight / 2);
+        deviationContext.beginPath();
+        deviationContext.fillStyle = color;
+        deviationContext.arc(x, y, 4, 0, Math.PI * 2);
+        deviationContext.fill();
+      });
+    };
+
+    plotLine((item) => item.averageAbs, '#ffca63');
+    plotLine((item) => item.average, '#3ddc97');
+  };
+
+  const canvasContext = progressCanvas.getContext('2d');
+  if (!canvasContext || !deviationContext) {
+    console.warn('Progress canvas unavailable; visuals will be limited');
+  }
+
+  let animationFrameId: number | null = null;
+  let progressAmount = 0;
+  let canvasCssWidth = 0;
+  let canvasCssHeight = 0;
+  let deviationCssWidth = 0;
+  let deviationCssHeight = 0;
+  let countdownValue: number | null = null;
+  let progressBeatsPerBar = 0;
+  let progressBarCount = 0;
+  let timingWindowStart = 0;
+  let timingWindowDuration = 1;
+  let currentSecondsPerBeat = 1;
+  let totalBeatsPerPattern = 1;
+  let evaluatedCount = 0;
 
   const renderProgressCanvas = () => {
     if (canvasCssWidth <= 0 || canvasCssHeight <= 0) {
@@ -110,19 +278,27 @@ let timingWindowDuration = 1;
 
     canvasContext.clearRect(0, 0, canvasCssWidth, canvasCssHeight);
 
-    const trackHeight = Math.max(1, Math.min(2, canvasCssHeight * 0.02));
-    const trackY = (canvasCssHeight - trackHeight) / 2;
+    const pad = CANVAS_PADDING;
+    const drawWidth = Math.max(canvasCssWidth - pad * 2, 0);
+    const drawHeight = Math.max(canvasCssHeight - pad * 2, 0);
+    if (drawWidth <= 0 || drawHeight <= 0) {
+      return;
+    }
 
+    const left = pad;
+    const top = pad;
+    const midY = top + drawHeight / 2;
+
+    const trackHeight = Math.max(1, Math.min(2, drawHeight * 0.02));
     canvasContext.fillStyle = 'rgba(255, 255, 255, 0.24)';
-    canvasContext.fillRect(0, trackY, canvasCssWidth, trackHeight);
+    canvasContext.fillRect(left, midY - trackHeight / 2, drawWidth, trackHeight);
 
     const waveform = microphone.getPeaks();
     if (waveform.lastIndex >= 0) {
       const points = waveform.min.length;
       const upper = waveform.max;
       const lower = waveform.min;
-      const amplitude = canvasCssHeight * 0.3;
-      const midY = canvasCssHeight / 2;
+      const amplitude = drawHeight * 0.45;
       const displayGain = waveform.gain;
 
       canvasContext.save();
@@ -130,7 +306,8 @@ let timingWindowDuration = 1;
 
       let started = false;
       for (let i = 0; i <= waveform.lastIndex; i += 1) {
-        const x = (i / Math.max(1, points - 1)) * canvasCssWidth;
+        const x =
+          left + (i / Math.max(1, points - 1)) * drawWidth;
         const sample = Math.max(-1, Math.min(1, upper[i] || 0));
         const scaled = Math.max(-1, Math.min(1, sample * displayGain));
         const y = midY + scaled * amplitude;
@@ -143,7 +320,8 @@ let timingWindowDuration = 1;
       }
 
       for (let i = waveform.lastIndex; i >= 0; i -= 1) {
-        const x = (i / Math.max(1, points - 1)) * canvasCssWidth;
+        const x =
+          left + (i / Math.max(1, points - 1)) * drawWidth;
         const sample = Math.max(-1, Math.min(1, lower[i] || 0));
         const scaled = Math.max(-1, Math.min(1, sample * displayGain));
         const y = midY + scaled * amplitude;
@@ -162,44 +340,46 @@ let timingWindowDuration = 1;
     if (progressBeatsPerBar > 0 && progressBarCount > 0) {
       canvasContext.save();
       const totalBeats = progressBeatsPerBar * progressBarCount;
-      const beatWidth =
-        totalBeats > 0 ? canvasCssWidth / totalBeats : canvasCssWidth;
+      const beatWidth = totalBeats > 0 ? drawWidth / totalBeats : drawWidth;
 
       canvasContext.fillStyle = 'rgba(255, 194, 122, 0.45)';
-      const beatLineHeight = canvasCssHeight * 0.25;
-      const beatLineY = (canvasCssHeight - beatLineHeight) / 2;
+      const beatLineHeight = drawHeight * 0.25;
+      const beatLineY = midY - beatLineHeight / 2;
       for (let beat = 1; beat < totalBeats; beat += 1) {
         if (beat % progressBeatsPerBar === 0) {
           continue;
         }
-        const beatX = Math.round(beat * beatWidth) + 0.5;
+        const beatX = left + beat * beatWidth;
         canvasContext.fillRect(beatX, beatLineY, 1, beatLineHeight);
       }
 
       canvasContext.fillStyle = 'rgba(255, 226, 133, 0.75)';
       const barWidth = beatWidth * progressBeatsPerBar;
-      const barLineHeight = canvasCssHeight * 0.75;
-      const barLineY = (canvasCssHeight - barLineHeight) / 2;
+      const barLineHeight = drawHeight * 0.75;
+      const barLineY = midY - barLineHeight / 2;
 
       for (let bar = 0; bar <= progressBarCount; bar += 1) {
-        const x = Math.round(bar * barWidth) + 0.5;
+        const x = left + bar * barWidth;
         canvasContext.fillRect(x, barLineY, 1, barLineHeight);
       }
       canvasContext.restore();
     }
 
     const indicatorWidth = Math.max(3, canvasCssWidth * 0.006);
-    const indicatorX = progressAmount * canvasCssWidth;
+    const indicatorX = left + progressAmount * drawWidth;
     const indicatorLeft = indicatorX - indicatorWidth / 2;
 
     canvasContext.fillStyle = '#f6f9ff';
-    canvasContext.fillRect(indicatorLeft, 0, indicatorWidth, canvasCssHeight);
+    const indicatorHeight = drawHeight / 2;
+    const indicatorTop = midY - indicatorHeight / 2;
+    const indicatorWidthClamped = Math.max(1, Math.min(2, indicatorWidth));
+    canvasContext.fillRect(indicatorLeft, indicatorTop, indicatorWidthClamped, indicatorHeight);
 
     renderTimingIndicators();
 
     if (countdownValue && countdownValue > 0) {
       const text = String(countdownValue);
-      const fontSize = Math.min(canvasCssHeight * 0.42, 64);
+      const fontSize = Math.min(drawHeight * 0.42, 64);
       canvasContext.save();
       canvasContext.font = `600 ${fontSize}px 'Segoe UI', Tahoma, sans-serif`;
       canvasContext.textAlign = 'center';
@@ -209,7 +389,7 @@ let timingWindowDuration = 1;
       canvasContext.shadowBlur = fontSize * 0.35;
       canvasContext.shadowOffsetX = 0;
       canvasContext.shadowOffsetY = 0;
-      canvasContext.fillText(text, canvasCssWidth / 2, canvasCssHeight / 2);
+      canvasContext.fillText(text, left + drawWidth / 2, top + drawHeight / 2);
       canvasContext.restore();
     }
   };
@@ -219,13 +399,23 @@ let timingWindowDuration = 1;
       return;
     }
 
+    const pad = CANVAS_PADDING;
+    const drawWidth = Math.max(canvasCssWidth - pad * 2, 0);
+    const drawHeight = Math.max(canvasCssHeight - pad * 2, 0);
+    if (drawWidth <= 0 || drawHeight <= 0) {
+      return;
+    }
+
+    const left = pad;
     const startTime = timingWindowStart;
     const duration = timingWindowDuration || 1;
-    const midY = canvasCssHeight / 2;
+    const midY = pad + drawHeight / 2;
     const toleranceMs = TimingAnalyzer.onTimeTolerance * 1000;
     const nearToleranceMs = toleranceMs * 2;
 
     const evaluations = timingAnalyzer.getResolvedBeats();
+    updateDeviationHistory();
+    renderDeviationCanvas();
     if (!evaluations.length) {
       return;
     }
@@ -236,7 +426,10 @@ let timingWindowDuration = 1;
         continue;
       }
       const normalizedTime = (evaluation.peakTime - startTime) / duration;
-      const x = Math.max(0, Math.min(canvasCssWidth, normalizedTime * canvasCssWidth));
+      const x = Math.max(
+        left,
+        Math.min(left + drawWidth, left + normalizedTime * drawWidth),
+      );
 
       let color = '#3ddc97';
       if (evaluation.delta !== undefined) {
@@ -268,15 +461,23 @@ let timingWindowDuration = 1;
     canvasCssHeight = rect.height;
     progressCanvas.width = Math.max(1, Math.round(rect.width * dpr));
     progressCanvas.height = Math.max(1, Math.round(rect.height * dpr));
+    const deviationRect = deviationCanvas.getBoundingClientRect();
+    deviationCssWidth = deviationRect.width;
+    deviationCssHeight = deviationRect.height;
+    deviationCanvas.width = Math.max(1, Math.round(deviationRect.width * dpr));
+    deviationCanvas.height = Math.max(1, Math.round(deviationRect.height * dpr));
 
-    if (!canvasContext) {
+    if (!canvasContext || !deviationContext) {
       return;
     }
 
     canvasContext.setTransform(1, 0, 0, 1, 0, 0);
     canvasContext.scale(dpr, dpr);
+    deviationContext.setTransform(1, 0, 0, 1, 0, 0);
+    deviationContext.scale(dpr, dpr);
 
     renderProgressCanvas();
+    renderDeviationCanvas();
   };
 
   window.addEventListener('resize', resizeCanvas, { passive: true });
@@ -315,6 +516,9 @@ let timingWindowDuration = 1;
     timingAnalyzer.startCycle(playbackStartTime, secondsPerBeat, playbackBeats);
     timingWindowStart = playbackStartTime;
     timingWindowDuration = Math.max(secondsPerBeat * playbackBeats, 0.001);
+    currentSecondsPerBeat = secondsPerBeat || currentSecondsPerBeat;
+    totalBeatsPerPattern = Math.max(playbackBeats, 1);
+    evaluatedCount = 0;
     setProgress(0);
 
     if (playbackDuration <= 0) {
@@ -592,6 +796,7 @@ let timingWindowDuration = 1;
     setCountdown(null);
     updateBarGuides();
     timingAnalyzer.reset();
+    updateDeviationHistory();
     microphone.reset();
 
     try {
@@ -705,7 +910,7 @@ let timingWindowDuration = 1;
     gainControls,
     transport,
   );
-  page.append(heading, form, progressSection);
+  page.append(heading, form, progressSection, deviationCanvas);
 
   root.replaceChildren(page);
 }
