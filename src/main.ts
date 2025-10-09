@@ -496,8 +496,8 @@ function renderApp(root: HTMLElement): void {
     );
 
     if (state === 'playing') {
-      playPauseButton.textContent = '■';
-      playPauseButton.setAttribute('aria-label', 'Stop');
+      playPauseButton.textContent = '⏸';
+      playPauseButton.setAttribute('aria-label', 'Pause');
     } else {
       playPauseButton.textContent = '▶';
       playPauseButton.setAttribute('aria-label', 'Play');

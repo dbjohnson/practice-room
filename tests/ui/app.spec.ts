@@ -167,7 +167,7 @@ describe('Tempo Trainer transport controls', () => {
         barCount: 4,
       }),
     );
-    expect(playPauseButton?.textContent?.trim()).toBe('■');
+    expect(playPauseButton?.textContent?.trim()).toBe('⏸');
     expect(playPauseButton?.dataset.state).toBe('playing');
 
     resolvePlayback?.();
