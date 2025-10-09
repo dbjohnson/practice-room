@@ -5,6 +5,7 @@ export interface MetronomeSchedule {
   playbackDuration: number;
   secondsPerBeat: number;
   countInBeats: number;
+  beatsPerBar: number;
   playbackBeats: number;
   totalBeats: number;
 }
@@ -90,6 +91,7 @@ export async function startMetronome({
     playbackDuration,
     secondsPerBeat,
     countInBeats,
+    beatsPerBar,
     playbackBeats,
     totalBeats,
   });

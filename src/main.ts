@@ -86,6 +86,8 @@ function renderApp(root: HTMLElement): void {
   let canvasCssWidth = 0;
   let canvasCssHeight = 0;
   let countdownValue: number | null = null;
+  let progressBeatsPerBar = 0;
+  let progressBarCount = 0;
 
   const renderProgressCanvas = () => {
     if (canvasCssWidth <= 0 || canvasCssHeight <= 0) {
@@ -98,29 +100,47 @@ function renderApp(root: HTMLElement): void {
 
     canvasContext.clearRect(0, 0, canvasCssWidth, canvasCssHeight);
 
-    const trackHeight = Math.max(12, canvasCssHeight * 0.22);
+    const trackHeight = Math.max(1, Math.min(2, canvasCssHeight * 0.02));
     const trackY = (canvasCssHeight - trackHeight) / 2;
 
-    canvasContext.fillStyle = 'rgba(255, 255, 255, 0.16)';
+    canvasContext.fillStyle = 'rgba(255, 255, 255, 0.35)';
     canvasContext.fillRect(0, trackY, canvasCssWidth, trackHeight);
 
-    const indicatorWidth = Math.max(6, canvasCssWidth * 0.012);
+    if (progressBeatsPerBar > 0 && progressBarCount > 0) {
+      canvasContext.save();
+      const totalBeats = progressBeatsPerBar * progressBarCount;
+      const beatWidth =
+        totalBeats > 0 ? canvasCssWidth / totalBeats : canvasCssWidth;
+
+      canvasContext.fillStyle = 'rgba(255, 255, 255, 0.18)';
+      const beatLineHeight = canvasCssHeight * 0.25;
+      const beatLineY = (canvasCssHeight - beatLineHeight) / 2;
+      for (let beat = 1; beat < totalBeats; beat += 1) {
+        if (beat % progressBeatsPerBar === 0) {
+          continue;
+        }
+        const beatX = Math.round(beat * beatWidth) + 0.5;
+        canvasContext.fillRect(beatX, beatLineY, 1, beatLineHeight);
+      }
+
+      canvasContext.fillStyle = 'rgba(255, 255, 255, 0.28)';
+      const barWidth = beatWidth * progressBeatsPerBar;
+      const barLineHeight = canvasCssHeight * 0.75;
+      const barLineY = (canvasCssHeight - barLineHeight) / 2;
+
+      for (let bar = 0; bar <= progressBarCount; bar += 1) {
+        const x = Math.round(bar * barWidth) + 0.5;
+        canvasContext.fillRect(x, barLineY, 1, barLineHeight);
+      }
+      canvasContext.restore();
+    }
+
+    const indicatorWidth = Math.max(3, canvasCssWidth * 0.006);
     const indicatorX = progressAmount * canvasCssWidth;
     const indicatorLeft = indicatorX - indicatorWidth / 2;
 
     canvasContext.fillStyle = '#f6f9ff';
     canvasContext.fillRect(indicatorLeft, 0, indicatorWidth, canvasCssHeight);
-
-    const glowWidth = Math.max(indicatorWidth * 4, canvasCssWidth * 0.04);
-    const glowLeft = indicatorX - glowWidth / 2;
-
-    canvasContext.fillStyle = 'rgba(110, 176, 255, 0.28)';
-    canvasContext.fillRect(
-      glowLeft,
-      trackY - trackHeight * 0.4,
-      glowWidth,
-      trackHeight * 1.8,
-    );
 
     if (countdownValue && countdownValue > 0) {
       const text = String(countdownValue);
@@ -190,6 +210,8 @@ function renderApp(root: HTMLElement): void {
     playbackDuration,
     secondsPerBeat,
     countInBeats,
+    beatsPerBar,
+    playbackBeats,
   }: MetronomeSchedule): void => {
     stopProgressAnimation();
 
@@ -197,6 +219,16 @@ function renderApp(root: HTMLElement): void {
       setProgress(1);
       setCountdown(null);
       return;
+    }
+
+    if (beatsPerBar > 0) {
+      progressBeatsPerBar = beatsPerBar;
+      const derivedBarCount =
+        playbackBeats > 0
+          ? Math.max(1, Math.round(playbackBeats / beatsPerBar))
+          : progressBarCount;
+      progressBarCount = derivedBarCount;
+      renderProgressCanvas();
     }
 
     setCountdown(countInBeats);
@@ -244,8 +276,7 @@ function renderApp(root: HTMLElement): void {
 
   setProgress(0);
   setCountdown(null);
-  requestAnimationFrame(initializeCanvas);
-  setCountdown(null);
+  window.addEventListener('resize', resizeCanvas, { passive: true });
 
   const tempoControl = createSelect({
     id: 'tempo',
@@ -297,6 +328,21 @@ function renderApp(root: HTMLElement): void {
   if (!tempoSelect || !beatsPerBarSelect || !barCountSelect) {
     throw new Error('Missing select controls');
   }
+
+  const updateBarGuides = () => {
+    const beatsPerBar = Number(beatsPerBarSelect.value);
+    const barCount = Number(barCountSelect.value);
+    progressBeatsPerBar =
+      beatsPerBar > 0 ? beatsPerBar : DEFAULTS.beatsPerBar;
+    progressBarCount = barCount > 0 ? barCount : DEFAULTS.barCount;
+    renderProgressCanvas();
+  };
+  beatsPerBarSelect.addEventListener('change', updateBarGuides);
+  barCountSelect.addEventListener('change', updateBarGuides);
+  requestAnimationFrame(() => {
+    updateBarGuides();
+    initializeCanvas();
+  });
 
   const startButton = document.createElement('button');
   startButton.type = 'button';
