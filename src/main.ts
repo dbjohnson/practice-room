@@ -69,10 +69,6 @@ function renderApp(root: HTMLElement): void {
   const progressSection = document.createElement('section');
   progressSection.className = 'progress';
 
-  const progressLabel = document.createElement('span');
-  progressLabel.className = 'progress__label';
-  progressLabel.textContent = 'Pattern progress';
-
   const progressCanvas = document.createElement('canvas');
   progressCanvas.className = 'progress__canvas';
   progressCanvas.setAttribute('aria-hidden', 'true');
@@ -83,7 +79,7 @@ function renderApp(root: HTMLElement): void {
   progressContainer.className = 'progress__container';
   progressContainer.append(progressCanvas);
 
-  progressSection.append(progressLabel, progressContainer);
+  progressSection.append(progressContainer);
 
   const canvasContext = progressCanvas.getContext('2d');
   if (!canvasContext) {
@@ -481,7 +477,7 @@ function renderApp(root: HTMLElement): void {
   playPauseButton.type = 'button';
   playPauseButton.id = 'playPauseButton';
   playPauseButton.className = 'transport__button transport__button--primary';
-  playPauseButton.textContent = 'Play';
+  playPauseButton.textContent = '▶';
   playPauseButton.setAttribute('aria-label', 'Play');
   playPauseButton.setAttribute('aria-pressed', 'false');
 
@@ -500,10 +496,10 @@ function renderApp(root: HTMLElement): void {
     );
 
     if (state === 'playing') {
-      playPauseButton.textContent = 'Stop';
+      playPauseButton.textContent = '■';
       playPauseButton.setAttribute('aria-label', 'Stop');
     } else {
-      playPauseButton.textContent = 'Play';
+      playPauseButton.textContent = '▶';
       playPauseButton.setAttribute('aria-label', 'Play');
     }
   };

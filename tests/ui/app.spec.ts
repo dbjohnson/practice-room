@@ -95,7 +95,7 @@ describe('Tempo Trainer transport controls', () => {
     expect(beatsSelect?.value).toBe('4');
     expect(barsSelect?.value).toBe('4');
     expect(progressCanvas).toBeTruthy();
-    expect(playPauseButton?.textContent?.trim()).toBe('Play');
+    expect(playPauseButton?.textContent?.trim()).toBe('▶');
     expect(playPauseButton?.dataset.state).toBe('idle');
     expect(autoGainCheckbox?.checked).toBe(true);
     expect(manualGainSlider?.disabled).toBe(true);
@@ -167,13 +167,13 @@ describe('Tempo Trainer transport controls', () => {
         barCount: 4,
       }),
     );
-    expect(playPauseButton?.textContent?.trim()).toBe('Stop');
+    expect(playPauseButton?.textContent?.trim()).toBe('■');
     expect(playPauseButton?.dataset.state).toBe('playing');
 
     resolvePlayback?.();
     await flushMicrotasks();
 
-    expect(playPauseButton?.textContent?.trim()).toBe('Play');
+    expect(playPauseButton?.textContent?.trim()).toBe('▶');
     expect(playPauseButton?.dataset.state).toBe('idle');
   });
 
@@ -201,7 +201,7 @@ describe('Tempo Trainer transport controls', () => {
     resolvePlayback?.();
     await flushMicrotasks();
 
-    expect(playPauseButton?.textContent?.trim()).toBe('Play');
+    expect(playPauseButton?.textContent?.trim()).toBe('▶');
   });
 
   test('space key toggles play and pause', async () => {
