@@ -510,9 +510,7 @@ function renderApp(root: HTMLElement): void {
     void microphone.stop();
     setCountdown(null);
     setTransportState('idle');
-    if (errored || playbackStopRequested) {
-      setProgress(0);
-    } else {
+    if (!errored && !playbackStopRequested) {
       setProgress(1);
     }
     playbackStopRequested = false;
@@ -577,8 +575,6 @@ function renderApp(root: HTMLElement): void {
       playbackStopRequested = false;
       stopProgressAnimation();
       void microphone.stop();
-      setProgress(0);
-      setCountdown(null);
       setTransportState('idle');
       return;
     }
