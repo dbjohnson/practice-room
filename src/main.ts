@@ -90,9 +90,10 @@ progressCanvas.setAttribute('aria-hidden', 'true');
 
   const deviationContext = deviationCanvas.getContext('2d');
 
-const MAX_HISTORY = 10;
-const CANVAS_PADDING = 8;
-  const beatDeviations: number[] = [];
+  const MAX_HISTORY = 10;
+  const CANVAS_PADDING = 8;
+  const beatDeviations: Array<number | null> = [];
+  let shouldResetDeviationHistory = true;
 
   const updateDeviationHistory = () => {
     const results = timingAnalyzer.getResolvedBeats();
@@ -104,9 +105,9 @@ const CANVAS_PADDING = 8;
     for (let i = evaluatedCount; i < results.length; i += 1) {
       const result = results[i];
       const normalized =
-        result.delta !== undefined && beatDuration > 0
+        result.delta !== undefined && result.delta !== null && beatDuration > 0
           ? (result.delta ?? 0) / beatDuration
-          : 0;
+          : null;
       beatDeviations.push(normalized);
     }
     evaluatedCount = results.length;
@@ -155,12 +156,12 @@ const CANVAS_PADDING = 8;
     }
     deviationContext.setLineDash([]);
 
-    const tickCount = MAX_HISTORY;
+    const totalPatterns = MAX_HISTORY;
+    const denominatorTicks = Math.max(totalPatterns, 1);
     deviationContext.strokeStyle = 'rgba(255, 255, 255, 0.12)';
     deviationContext.lineWidth = 1;
     deviationContext.beginPath();
-    const denominatorTicks = Math.max(tickCount - 1, 1);
-    for (let i = 0; i < tickCount; i += 1) {
+    for (let i = 0; i <= totalPatterns; i += 1) {
       const x = pad + (i / denominatorTicks) * drawWidth;
       deviationContext.moveTo(x, centerY - 4);
       deviationContext.lineTo(x, centerY + 4);
@@ -172,79 +173,64 @@ const CANVAS_PADDING = 8;
     }
 
     const windowSize = Math.max(totalBeatsPerPattern, 1);
-    const windowAverages: Array<{ average: number; averageAbs: number }> = [];
-
-    for (let windowIndex = 0; windowIndex < MAX_HISTORY; windowIndex += 1) {
-      const windowEnd = beatDeviations.length - windowIndex * windowSize;
-      const windowStart = windowEnd - windowSize;
-      if (windowEnd <= 0) {
-        break;
-      }
-      const actualStart = Math.max(0, windowStart);
-      if (actualStart >= windowEnd) {
-        break;
-      }
-      const slice = beatDeviations.slice(actualStart, windowEnd);
-      if (!slice.length) {
-        break;
-      }
-      const sum = slice.reduce((acc, value) => acc + value, 0);
-      const sumAbs = slice.reduce((acc, value) => acc + Math.abs(value), 0);
-      windowAverages.push({
-        average: sum / slice.length,
-        averageAbs: sumAbs / slice.length,
-      });
-      if (actualStart === 0 && slice.length < windowSize) {
-        break;
-      }
-    }
-
-    if (!windowAverages.length) {
+    const maxBeats = Math.max(windowSize * MAX_HISTORY, 1);
+    const beatData = beatDeviations.slice(-maxBeats);
+    if (!beatData.length) {
       return;
     }
 
-    const plotLine = (
-      accessor: (item: { average: number; averageAbs: number }) => number,
+    const points = beatData.map((value, index) => ({
+      age: beatData.length - 1 - index,
+      raw: value,
+    }));
+
+    points.sort((a, b) => a.age - b.age);
+    const maxAge = Math.max(maxBeats - 1, 1);
+
+    const plotBeatLine = (
+      accessor: (point: { age: number; raw: number | null }) => number | null,
       color: string,
     ) => {
-      const denominator = Math.max(MAX_HISTORY - 1, 1);
-
       deviationContext.strokeStyle = color;
       deviationContext.lineWidth = 2;
       deviationContext.beginPath();
-      windowAverages.forEach((item, index) => {
-        const normalizedX = denominator === 0 ? 0 : index / denominator;
+      let started = false;
+      points.forEach((point, index) => {
+        const normalizedX = point.age / maxAge;
         const x = pad + normalizedX * drawWidth;
-        const value = Math.max(
-          -verticalRange,
-          Math.min(verticalRange, accessor(item)),
-        );
+        const rawValue = accessor(point);
+        if (rawValue === null || Number.isNaN(rawValue)) {
+          started = false;
+          return;
+        }
+        const value = Math.max(-verticalRange, Math.min(verticalRange, rawValue));
         const y = centerY - (value / verticalRange) * (drawHeight / 2);
-        if (index === 0) {
+        if (!started) {
           deviationContext.moveTo(x, y);
+          started = true;
         } else {
           deviationContext.lineTo(x, y);
         }
       });
       deviationContext.stroke();
 
-      windowAverages.forEach((item, index) => {
-        const normalizedX = denominator === 0 ? 0 : index / denominator;
+      points.forEach((point) => {
+        const normalizedX = point.age / maxAge;
         const x = pad + normalizedX * drawWidth;
-        const value = Math.max(
-          -verticalRange,
-          Math.min(verticalRange, accessor(item)),
-        );
+        const rawValue = accessor(point);
+        if (rawValue === null || Number.isNaN(rawValue)) {
+          return;
+        }
+        const value = Math.max(-verticalRange, Math.min(verticalRange, rawValue));
         const y = centerY - (value / verticalRange) * (drawHeight / 2);
         deviationContext.beginPath();
         deviationContext.fillStyle = color;
-        deviationContext.arc(x, y, 4, 0, Math.PI * 2);
+        deviationContext.arc(x, y, 3, 0, Math.PI * 2);
         deviationContext.fill();
       });
     };
 
-    plotLine((item) => item.averageAbs, '#ffca63');
-    plotLine((item) => item.average, '#3ddc97');
+    plotBeatLine((point) => point.raw, '#ffffff');
   };
 
   const canvasContext = progressCanvas.getContext('2d');
@@ -342,7 +328,7 @@ const CANVAS_PADDING = 8;
       const totalBeats = progressBeatsPerBar * progressBarCount;
       const beatWidth = totalBeats > 0 ? drawWidth / totalBeats : drawWidth;
 
-      canvasContext.fillStyle = 'rgba(255, 194, 122, 0.45)';
+      canvasContext.fillStyle = 'rgba(255, 255, 255, 0.45)';
       const beatLineHeight = drawHeight * 0.25;
       const beatLineY = midY - beatLineHeight / 2;
       for (let beat = 1; beat < totalBeats; beat += 1) {
@@ -353,7 +339,7 @@ const CANVAS_PADDING = 8;
         canvasContext.fillRect(beatX, beatLineY, 1, beatLineHeight);
       }
 
-      canvasContext.fillStyle = 'rgba(255, 226, 133, 0.75)';
+      canvasContext.fillStyle = 'rgba(255, 255, 255, 0.75)';
       const barWidth = beatWidth * progressBeatsPerBar;
       const barLineHeight = drawHeight * 0.75;
       const barLineY = midY - barLineHeight / 2;
@@ -365,15 +351,22 @@ const CANVAS_PADDING = 8;
       canvasContext.restore();
     }
 
-    const indicatorWidth = Math.max(3, canvasCssWidth * 0.006);
-    const indicatorX = left + progressAmount * drawWidth;
-    const indicatorLeft = indicatorX - indicatorWidth / 2;
+    if (progressAmount > 0 && progressAmount < 1) {
+      const indicatorWidth = Math.max(3, canvasCssWidth * 0.006);
+      const indicatorX = left + progressAmount * drawWidth;
+      const indicatorLeft = indicatorX - indicatorWidth / 2;
 
-    canvasContext.fillStyle = '#f6f9ff';
-    const indicatorHeight = drawHeight / 2;
-    const indicatorTop = midY - indicatorHeight / 2;
-    const indicatorWidthClamped = Math.max(1, Math.min(2, indicatorWidth));
-    canvasContext.fillRect(indicatorLeft, indicatorTop, indicatorWidthClamped, indicatorHeight);
+      canvasContext.fillStyle = '#f6f9ff';
+      const indicatorHeight = drawHeight / 2;
+      const indicatorTop = midY - indicatorHeight / 2;
+      const indicatorWidthClamped = Math.max(1, Math.min(2, indicatorWidth));
+      canvasContext.fillRect(
+        indicatorLeft,
+        indicatorTop,
+        indicatorWidthClamped,
+        indicatorHeight,
+      );
+    }
 
     renderTimingIndicators();
 
@@ -779,6 +772,7 @@ const CANVAS_PADDING = 8;
     if (!errored && !playbackStopRequested) {
       setProgress(1);
     }
+    shouldResetDeviationHistory = true;
     renderProgressCanvas();
     playbackStopRequested = false;
   };
@@ -795,8 +789,15 @@ const CANVAS_PADDING = 8;
     setProgress(0);
     setCountdown(null);
     updateBarGuides();
+
+    if (shouldResetDeviationHistory) {
+      beatDeviations.length = 0;
+      evaluatedCount = 0;
+      renderDeviationCanvas();
+      shouldResetDeviationHistory = false;
+    }
+
     timingAnalyzer.reset();
-    updateDeviationHistory();
     microphone.reset();
 
     try {
