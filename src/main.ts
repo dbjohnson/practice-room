@@ -493,13 +493,13 @@ function renderApp(root: HTMLElement): void {
   let currentSecondsPerBeat = 1;
   let totalBeatsPerPattern = 1;
   const patternConfig: Omit<PatternRow, 'notes'>[] = [
-    { subdivision: 1, sample: 'kick', gain: 1.0 },
-    { subdivision: 2, sample: 'snare', gain: 0.6 },
+    { subdivision: 4, sample: 'kick', gain: 1.0 },
+    { subdivision: 4, sample: 'snare', gain: 0.6 },
     { subdivision: 4, sample: 'hihat', gain: 0.5 },
   ];
-  const rowHeight = 40;
+  const rowHeight = 24;
   const buttonHeight = 24;
-  const buttonGap = 4;
+  const buttonGap = 0;
 
   let evaluatedCount = 0;
   let patterns: PatternRow[] = patternConfig.map(config => ({
@@ -542,7 +542,7 @@ function renderApp(root: HTMLElement): void {
           subdivision === 1 && i % progressBeatsPerBar === 0;
 
         sequencerContext.beginPath();
-        sequencerContext.roundRect(buttonX, buttonY, buttonWidth, buttonHeight, 4);
+        sequencerContext.roundRect(buttonX, buttonY, buttonWidth, buttonHeight, 2);
 
         if (isChecked) {
           sequencerContext.fillStyle = isAccent ? '#f5a623' : '#4a90e2';
