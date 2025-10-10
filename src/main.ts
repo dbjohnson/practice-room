@@ -166,8 +166,13 @@ function renderApp(root: HTMLElement): void {
   const MAX_HISTORY = 10;
   const CANVAS_PADDING = 8;
   const tunerContext = tunerCanvas.getContext('2d');
+  const TUNER_STABILITY_MS = 200;
+  const TUNER_FREQUENCY_TOLERANCE = 0.8;
   const beatDeviations: Array<number | null> = [];
   let shouldResetDeviationHistory = true;
+  let tunerStablePitch: Pitch | null = null;
+  let tunerCandidatePitch: Pitch | null = null;
+  let tunerCandidateStartMs: number | null = null;
 
   const updateDeviationHistory = () => {
     const results = timingAnalyzer.getResolvedBeats();
@@ -295,7 +300,7 @@ function renderApp(root: HTMLElement): void {
     plotBeatLine((point) => point.raw, '#ffffff');
   };
 
-  const renderTunerCanvas = (pitch: Pitch | null) => {
+  const renderTunerCanvas = (pitch: Pitch | null, timestampMs: number) => {
     if (!tunerContext || tunerCssWidth <= 0 || tunerCssHeight <= 0) {
       return;
     }
@@ -310,8 +315,41 @@ function renderApp(root: HTMLElement): void {
     }
 
     const confidence = pitch?.confidence ?? 0;
-    const hasPitch = Boolean(pitch && confidence >= 0.55);
-    const activePitch = hasPitch ? pitch : null;
+    const pitchIsConfident = Boolean(pitch && confidence >= 0.55);
+    const nowMs = timestampMs;
+
+    if (!pitchIsConfident || !pitch) {
+      tunerStablePitch = null;
+      tunerCandidatePitch = null;
+      tunerCandidateStartMs = null;
+    } else if (tunerStablePitch) {
+      if (Math.abs(pitch.frequency - tunerStablePitch.frequency) <= TUNER_FREQUENCY_TOLERANCE) {
+        tunerStablePitch = pitch;
+        tunerCandidatePitch = pitch;
+        tunerCandidateStartMs = nowMs;
+      } else {
+        tunerStablePitch = null;
+        tunerCandidatePitch = pitch;
+        tunerCandidateStartMs = nowMs;
+      }
+    } else {
+      if (!tunerCandidatePitch) {
+        tunerCandidatePitch = pitch;
+        tunerCandidateStartMs = nowMs;
+      } else if (
+        Math.abs(pitch.frequency - tunerCandidatePitch.frequency) <= TUNER_FREQUENCY_TOLERANCE
+      ) {
+        if (tunerCandidateStartMs !== null && nowMs - tunerCandidateStartMs >= TUNER_STABILITY_MS) {
+          tunerStablePitch = pitch;
+        }
+      } else {
+        tunerCandidatePitch = pitch;
+        tunerCandidateStartMs = nowMs;
+      }
+    }
+
+    const activePitch = tunerStablePitch;
+    const hasPitch = Boolean(activePitch);
 
     const { noteName, cents } = activePitch
       ? frequencyToNote(activePitch.frequency)
@@ -576,7 +614,7 @@ function renderApp(root: HTMLElement): void {
       cancelAnimationFrame(tunerAnimationId);
       tunerAnimationId = null;
     }
-    renderTunerCanvas(null); // Clear the tuner view
+    renderTunerCanvas(null, performance.now()); // Clear the tuner view
   };
 
   const startTunerLoop = () => {
@@ -587,9 +625,10 @@ function renderApp(root: HTMLElement): void {
         stopTunerLoop();
         return;
       }
-      microphone.processAudio(performance.now() / 1000);
+      const frameNow = performance.now();
+      microphone.processAudio(frameNow / 1000);
       const pitch = microphone.getPitch();
-      renderTunerCanvas(pitch);
+      renderTunerCanvas(pitch, frameNow);
       tunerAnimationId = requestAnimationFrame(renderTuner);
     };
 
