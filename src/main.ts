@@ -4,9 +4,11 @@ import {
   getScheduledClicks,
   startMetronome,
   stopMetronome,
+  PatternRow,
 } from './audio/metronome';
 import type { MetronomeSchedule } from './audio/metronome';
 import { MicrophoneRecorder } from './audio/microphoneRecorder';
+import { Sampler } from './audio/sampler';
 import { TimingAnalyzer } from './audio/timingAnalyzer';
 
 interface NumberControlConfig {
@@ -20,7 +22,7 @@ interface NumberControlConfig {
 const DEFAULTS = {
   tempoBpm: 90,
   beatsPerBar: 4,
-  barCount: 4,
+  barCount: 1,
 };
 
 const formatGain = (gain: number): string => gain.toFixed(1);
@@ -79,8 +81,9 @@ function renderApp(root: HTMLElement): void {
   sequencerCanvas.id = 'sequencer';
   sequencerCanvas.className = 'sequencer__canvas';
 
-  const microphone = new MicrophoneRecorder();
+  const microphone = new MicrophoneRecorder(); // This seems to be initialized twice. Let's remove the second one.
   const timingAnalyzer = new TimingAnalyzer();
+  let sampler: Sampler | null = null;
 
   const progressContainer = document.createElement('div');
   progressContainer.className = 'progress__container';
@@ -258,8 +261,21 @@ function renderApp(root: HTMLElement): void {
   let timingWindowDuration = 1;
   let currentSecondsPerBeat = 1;
   let totalBeatsPerPattern = 1;
+  const patternConfig: Omit<PatternRow, 'notes'>[] = [
+    { subdivision: 1, sample: 'kick', gain: 1.0 },
+    { subdivision: 2, sample: 'snare', gain: 0.6 },
+    { subdivision: 4, sample: 'hihat', gain: 0.5 },
+  ];
+  const rowHeight = 40;
+  const buttonHeight = 24;
+  const buttonGap = 4;
+
   let evaluatedCount = 0;
-  let pattern: boolean[] = [];
+  let patterns: PatternRow[] = patternConfig.map(config => ({
+    ...config,
+    notes: [],
+  }));
+
 
   const renderSequencerCanvas = () => {
     if (!sequencerContext || sequencerCssWidth <= 0 || sequencerCssHeight <= 0) {
@@ -269,79 +285,92 @@ function renderApp(root: HTMLElement): void {
     sequencerContext.clearRect(0, 0, sequencerCssWidth, sequencerCssHeight);
 
     const pad = CANVAS_PADDING;
-    const drawWidth = Math.max(sequencerCssWidth - pad * 2, 0);
-    const drawHeight = Math.max(sequencerCssHeight - pad * 2, 0);
-    if (drawWidth <= 0 || drawHeight <= 0) {
-      return;
-    }
+    const drawWidth = sequencerCssWidth - pad * 2;
 
-    const totalBeats = totalBeatsPerPattern;
-    if (totalBeats <= 0) {
-      return;
-    }
-
-    const beatWidth = drawWidth / totalBeats;
-    const buttonHeight = Math.min(drawHeight, 24);
-    const buttonY = (drawHeight - buttonHeight) / 2;
-    const buttonGap = 4;
-    const buttonWidth = beatWidth - buttonGap;
-
-    for (let i = 0; i < totalBeats; i++) {
-      const buttonX = pad + i * beatWidth + buttonGap / 2;
-      const isAccent = i % progressBeatsPerBar === 0;
-      const isChecked = pattern[i];
-
-      sequencerContext.beginPath();
-      sequencerContext.roundRect(buttonX, buttonY, buttonWidth, buttonHeight, 4);
-
-      if (isChecked) {
-        sequencerContext.fillStyle = isAccent ? '#f5a623' : '#4a90e2';
-        sequencerContext.strokeStyle = isAccent ? '#f8c471' : '#7ab3f0';
-      } else {
-        sequencerContext.fillStyle = '#3a4a65';
-        sequencerContext.strokeStyle = '#5a6c89';
+    patterns.forEach((patternRow, rowIndex) => {
+      const { subdivision, notes } = patternRow;
+      const totalButtons = totalBeatsPerPattern * subdivision;
+      if (totalButtons <= 0) {
+        return;
       }
 
-      sequencerContext.fill();
-      sequencerContext.lineWidth = 1;
-      sequencerContext.stroke();
-    }
+      const beatWidth = drawWidth / totalButtons;
+      const buttonWidth = beatWidth - buttonGap;
+      const rowY = rowIndex * rowHeight;
+      const buttonY = rowY + (rowHeight - buttonHeight) / 2;
+
+      for (let i = 0; i < totalButtons; i++) {
+        const buttonX = pad + i * beatWidth + buttonGap / 2;
+        const isChecked = notes[i];
+
+        // Determine if it's an accented beat (only for the main beat row)
+        const isAccent =
+          subdivision === 1 && i % progressBeatsPerBar === 0;
+
+        sequencerContext.beginPath();
+        sequencerContext.roundRect(buttonX, buttonY, buttonWidth, buttonHeight, 4);
+
+        if (isChecked) {
+          sequencerContext.fillStyle = isAccent ? '#f5a623' : '#4a90e2';
+          sequencerContext.strokeStyle = isAccent ? '#f8c471' : '#7ab3f0';
+        } else {
+          sequencerContext.fillStyle = '#3a4a65';
+          sequencerContext.strokeStyle = '#5a6c89';
+        }
+
+        sequencerContext.fill();
+        sequencerContext.lineWidth = 1;
+        sequencerContext.stroke();
+      }
+    });
   };
 
   const handleSequencerClick = (event: MouseEvent) => {
     const rect = sequencerCanvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
 
     const pad = CANVAS_PADDING;
     const drawWidth = Math.max(sequencerCssWidth - pad * 2, 0);
-    const totalBeats = totalBeatsPerPattern;
-    if (totalBeats <= 0 || drawWidth <= 0) return;
+    if (drawWidth <= 0) return;
 
-    const beatWidth = drawWidth / totalBeats;
-    const clickedBeat = Math.floor((x - pad) / beatWidth);
+    const clickedRowIndex = Math.floor(y / rowHeight);
+    if (clickedRowIndex < 0 || clickedRowIndex >= patterns.length) return;
 
-    if (clickedBeat >= 0 && clickedBeat < totalBeats) {
-      pattern[clickedBeat] = !pattern[clickedBeat];
+    const patternRow = patterns[clickedRowIndex];
+    const { subdivision, notes } = patternRow;
+    const totalButtons = totalBeatsPerPattern * subdivision;
+    const beatWidth = drawWidth / totalButtons;
+    const clickedButton = Math.floor((x - pad) / beatWidth);
+
+    if (clickedButton >= 0 && clickedButton < totalButtons) {
+      notes[clickedButton] = !notes[clickedButton];
       renderSequencerCanvas();
-      updateMetronomePattern(clickedBeat, pattern[clickedBeat]);
+      updateMetronomePattern(clickedRowIndex, clickedButton, notes[clickedButton]);
     }
   };
 
-  const updateMetronomePattern = (beatIndex: number, isEnabled: boolean) => {
+  const updateMetronomePattern = (
+    rowIndex: number,
+    noteIndex: number,
+    isEnabled: boolean,
+  ) => {
     if (!scheduleInfo) {
       return;
     }
 
     const scheduledClicks = getScheduledClicks();
-    const { playbackStartTime, secondsPerBeat } = scheduleInfo;
-    const expectedTime = playbackStartTime + beatIndex * secondsPerBeat;
+    const { playbackStartTime, secondsPerBeat, beatsPerBar } = scheduleInfo;
+    const { subdivision } = patterns[rowIndex];
+    const secondsPerNote = secondsPerBeat / subdivision;
+    const expectedTime = playbackStartTime + noteIndex * secondsPerNote;
 
     // Find the click corresponding to the toggled beat
     const click = scheduledClicks.find(
       (c) => Math.abs(c.startTime - expectedTime) < 0.001,
     );
 
-    click?.gain.gain.setValueAtTime(isEnabled ? 1.0 : 0.0, 0);
+    click?.patternGain.gain.setValueAtTime(isEnabled ? 1.0 : 0.0, 0);
   };
 
   // A variable to hold the schedule info from the metronome
@@ -603,7 +632,6 @@ function renderApp(root: HTMLElement): void {
 
   const startProgressAnimation = ({
     audioContext,
-    pattern: metronomePattern,
     startTime,
     playbackStartTime,
     playbackDuration,
@@ -615,7 +643,7 @@ function renderApp(root: HTMLElement): void {
     stopProgressAnimation();
     microphone.clearPeaks();
     timingAnalyzer.startCycle(playbackStartTime, secondsPerBeat, playbackBeats);
-    scheduleInfo = { audioContext, pattern: metronomePattern, startTime, playbackStartTime, playbackDuration, secondsPerBeat, countInBeats, beatsPerBar, playbackBeats };
+    scheduleInfo = { audioContext, startTime, playbackStartTime, playbackDuration, secondsPerBeat, countInBeats, beatsPerBar, playbackBeats };
     timingWindowStart = playbackStartTime;
     timingWindowDuration = Math.max(secondsPerBeat * playbackBeats, 0.001);
     currentSecondsPerBeat = secondsPerBeat || currentSecondsPerBeat;
@@ -819,11 +847,30 @@ function renderApp(root: HTMLElement): void {
   });
 
   const updateSequencerState = () => {
+    const oldPatterns = patterns;
+    const oldTotalBeats = totalBeatsPerPattern;
+
     const beatsPerBar = readPositiveInteger(beatsPerBarInput, DEFAULTS.beatsPerBar);
     const barCount = readPositiveInteger(barCountInput, DEFAULTS.barCount);
     const playbackBeats = beatsPerBar * barCount;
     totalBeatsPerPattern = playbackBeats;
-    pattern = Array(playbackBeats).fill(true);
+
+    patterns = patternConfig.map((config, i) => {
+      const { subdivision, sample, gain } = config;
+      const newNumNotes = playbackBeats * subdivision;
+      const newNotes = Array(newNumNotes).fill(false);
+      const oldNotes = oldPatterns[i]?.notes;
+
+      if (oldNotes && oldNotes.length > 0) {
+        for (let j = 0; j < newNumNotes; j++) {
+          newNotes[j] = oldNotes[j % oldNotes.length];
+        }
+      } else {
+        newNotes.fill(subdivision === 1); // Default only quarter notes on for initial setup.
+      }
+      return { subdivision, sample, gain, notes: newNotes };
+    });
+
     renderSequencerCanvas();
   };
 
@@ -856,6 +903,18 @@ function renderApp(root: HTMLElement): void {
     updateBarGuides();
     initializeCanvas();
     updateSequencerState();
+
+    // Load audio samples
+    const context = getMetronomeContext();
+    sampler = new Sampler(context);
+    sampler.load({
+      kick: '/samples/kick.wav',
+      snare: '/samples/snare.wav',
+      hihat: '/samples/hihat.wav',
+    }).then(() => {
+      console.log('Samples loaded');
+      setReadyState(true);
+    });
   });
 
   sequencerCanvas.addEventListener('click', handleSequencerClick);
@@ -914,6 +973,10 @@ function renderApp(root: HTMLElement): void {
       return;
     }
 
+    if (!sampler) {
+      console.error('Sampler not initialized');
+      return;
+    }
     playbackStopRequested = false;
     setTransportState('playing');
 
@@ -956,10 +1019,11 @@ function renderApp(root: HTMLElement): void {
 
     try {
       playbackPromise = startMetronome({
+        sampler,
         tempo,
         beatsPerBar,
         barCount,
-        pattern,
+        patterns,
         onSchedule: startProgressAnimation,
       });
     } catch (error) {
@@ -981,9 +1045,8 @@ function renderApp(root: HTMLElement): void {
       });
   };
 
-  beatsPerBarInput.addEventListener('change', updateSequencerState);
-  barCountInput.addEventListener('change', updateSequencerState);
-  tempoInput.addEventListener('change', updateSequencerState);
+  beatsPerBarInput.addEventListener('change', () => updateSequencerState());
+  barCountInput.addEventListener('change', () => updateSequencerState());
 
   const stopPlayback = async () => {
     if (!playbackPromise) {

@@ -1,6 +1,7 @@
+import type { Sampler } from './sampler';
+
 export interface MetronomeSchedule {
   audioContext: AudioContext;
-  pattern: boolean[];
   startTime: number;
   playbackStartTime: number;
   playbackDuration: number;
@@ -8,15 +9,22 @@ export interface MetronomeSchedule {
   countInBeats: number;
   beatsPerBar: number;
   playbackBeats: number;
-  totalBeats: number;
+}
+
+export interface PatternRow {
+  subdivision: number;
+  notes: boolean[];
+  sample: string;
+  gain?: number;
 }
 
 export interface MetronomeOptions {
+  sampler: Sampler;
   tempo: number;
   beatsPerBar: number;
   barCount: number;
   onSchedule?: (schedule: MetronomeSchedule) => void;
-  pattern?: boolean[];
+  patterns: PatternRow[];
 }
 
 const CLICK_ATTACK = 0.004;
@@ -24,13 +32,13 @@ const CLICK_DECAY = 0.08;
 const CLICK_DURATION = CLICK_ATTACK + CLICK_DECAY;
 const ACCENT_FREQUENCY = 1100;
 const REGULAR_FREQUENCY = 780;
-const ACCENT_GAIN = 0.32;
-const REGULAR_GAIN = 0.22;
+const ACCENT_GAIN = 1.0;
+const REGULAR_GAIN = 0.7;
 const START_DELAY = 0.1;
 
 type ScheduledClick = {
-  oscillator: OscillatorNode;
-  gain: GainNode;
+  source: AudioNode;
+  patternGain: GainNode;
   startTime: number;
   stopTime: number;
 };
@@ -57,40 +65,31 @@ export function getMetronomeContext(): AudioContext {
 let scheduledClicks: ScheduledClick[] = [];
 function scheduleClick(
   ctx: AudioContext,
+  sampler: Sampler,
   when: number,
   isAccent: boolean,
-  pattern: boolean[] | undefined,
-  beatIndex: number,
+  patternRow: PatternRow,
+  noteIndex: number,
   scheduled: ScheduledClick[],
 ): void {
-  const oscillator = ctx.createOscillator();
-  const gain = ctx.createGain();
   const patternGain = ctx.createGain();
-
-  oscillator.type = 'triangle'; // Reverted from 'sine' for a sharper click
-  oscillator.frequency.value = isAccent ? ACCENT_FREQUENCY : REGULAR_FREQUENCY;
-
-  const gainLevel = isAccent ? ACCENT_GAIN : REGULAR_GAIN;
-  gain.gain.setValueAtTime(0.0001, when);
-  gain.gain.linearRampToValueAtTime(gainLevel, when + CLICK_ATTACK);
-  gain.gain.linearRampToValueAtTime(0.0001, when + CLICK_DURATION);
+  const noteGain = isAccent ? ACCENT_GAIN : REGULAR_GAIN;
+  const sampleNode = sampler.play(patternRow.sample, when, noteGain * (patternRow.gain ?? 1.0));
+  if (!sampleNode) return;
 
   // Set initial gain based on the pattern.
   // It's 1 if the beat is active, and 0 if it's muted.
-  const isPlaybackBeat = beatIndex >= 0;
-  patternGain.gain.value =
-    !isPlaybackBeat || !pattern || pattern[beatIndex] ? 1.0 : 0.0;
+  patternGain.gain.value = patternRow.notes[noteIndex] ? 1.0 : 0.0;
 
-  oscillator.connect(gain);
-  gain.connect(patternGain);
+  sampleNode.connect(patternGain);
   patternGain.connect(ctx.destination);
 
-  oscillator.start(when);
-  oscillator.stop(when + CLICK_DURATION);
+  // The source node will stop automatically when the buffer is finished.
+  const stopTime = when + (CLICK_DURATION);
 
   scheduled.push({
-    oscillator,
-    gain: patternGain, // Store the controllable gain node
+    source: sampleNode,
+    patternGain, // Store the controllable gain node
     startTime: when,
     stopTime: when + CLICK_DURATION,
   });
@@ -103,11 +102,12 @@ export async function stopMetronome(): Promise<void> {
 }
 
 export async function startMetronome({
+  sampler,
   tempo,
   beatsPerBar,
   barCount,
   onSchedule,
-  pattern,
+  patterns,
 }: MetronomeOptions): Promise<void> {
   if (tempo <= 0) {
     throw new Error('Tempo must be positive');
@@ -133,19 +133,6 @@ export async function startMetronome({
   const startTime = ctx.currentTime + START_DELAY;
   const playbackStartTime = startTime + countInBeats * secondsPerBeat;
 
-  onSchedule?.({
-    audioContext: ctx,
-    startTime,
-    playbackStartTime,
-    playbackDuration,
-    secondsPerBeat,
-    countInBeats,
-    pattern: pattern || [],
-    beatsPerBar,
-    playbackBeats,
-    totalBeats,
-  });
-
   let stopped = false;
   let loopTimer: ReturnType<typeof setTimeout> | null = null;
   let resolvePlayback: (() => void) | null = null;
@@ -164,29 +151,29 @@ export async function startMetronome({
 
     const now = ctx.currentTime;
 
-    for (const { oscillator, gain, startTime: clickStart, stopTime } of scheduledClicks) {
+    for (const { source, patternGain, startTime: clickStart, stopTime } of scheduledClicks) {
       try {
         const stopAt = forceStop ? Math.max(now, clickStart) : stopTime;
-        oscillator.stop(stopAt);
+        source.stop(stopAt);
       } catch {
         // ignore oscillator state errors
       }
 
       try {
-        gain.gain.cancelScheduledValues(0);
-        gain.gain.setValueAtTime(0.0001, now);
+        patternGain.gain.cancelScheduledValues(0);
+        patternGain.gain.setValueAtTime(0.0001, now);
       } catch {
         // ignore gain scheduling errors
       }
 
       try {
-        oscillator.disconnect();
+        source.disconnect();
       } catch {
         // ignore disconnect errors
       }
 
       try {
-        gain.disconnect();
+        patternGain.disconnect();
       } catch {
         // ignore disconnect errors
       }
@@ -212,7 +199,6 @@ export async function startMetronome({
     pruneOldClicks();
 
     const countIn = includeCountIn ? countInBeats : 0;
-    const totalBeatsThisLoop = countIn + playbackBeats;
     const playbackStartTime =
       countIn > 0 ? loopStartTime + countIn * secondsPerBeat : loopStartTime;
     const playbackDuration = playbackBeats * secondsPerBeat;
@@ -226,22 +212,28 @@ export async function startMetronome({
       countInBeats: countIn,
       beatsPerBar,
       playbackBeats,
-      totalBeats: totalBeatsThisLoop,
     });
 
     // Schedule count-in beats
     for (let beat = 0; beat < countIn; beat++) {
       const beatTime = loopStartTime + beat * secondsPerBeat;
       const isAccent = beat % beatsPerBar === 0; // Count-in is always accented on the downbeat
-      scheduleClick(ctx, beatTime, isAccent, undefined, -1, scheduledClicks);
+      const countInPattern: PatternRow = {
+        subdivision: 1, notes: [true], sample: 'hihat'
+      };
+      scheduleClick(ctx, sampler, beatTime, isAccent, countInPattern, 0, scheduledClicks);
     }
 
     // Schedule playback beats based on the pattern
-    for (let beat = 0; beat < playbackBeats; beat++) {
-      const beatTime = loopStartTime + beat * secondsPerBeat;
-      const isAccent = beat % beatsPerBar === 0;
-      // Always schedule the click; its gain will be 0 if toggled off in the pattern.
-      scheduleClick(ctx, beatTime, isAccent, pattern, beat, scheduledClicks);
+    for (const patternRow of patterns) {
+      const secondsPerNote = secondsPerBeat / patternRow.subdivision;
+      for (let i = 0; i < playbackBeats * patternRow.subdivision; i++) {
+        const beatTime = playbackStartTime + i * secondsPerNote;
+        const isDownbeat = i % patternRow.subdivision === 0;
+        const beatInBar = (i / patternRow.subdivision) % beatsPerBar;
+        const isAccent = isDownbeat && beatInBar === 0;
+        scheduleClick(ctx, sampler, beatTime, isAccent, patternRow, i, scheduledClicks);
+      }
     }
 
     const nextLoopStart =

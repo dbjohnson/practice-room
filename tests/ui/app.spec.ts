@@ -93,7 +93,7 @@ describe('Tempo Trainer transport controls', () => {
 
     expect(tempoSelect?.value).toBe('90');
     expect(beatsSelect?.value).toBe('4');
-    expect(barsSelect?.value).toBe('4');
+    expect(barsSelect?.value).toBe('1');
     expect(progressCanvas).toBeTruthy();
     expect(playPauseButton?.textContent?.trim()).toBe('▶');
     expect(playPauseButton?.dataset.state).toBe('idle');
@@ -150,8 +150,7 @@ describe('Tempo Trainer transport controls', () => {
             secondsPerBeat: 1,
             countInBeats: 4,
             beatsPerBar: 4,
-            playbackBeats: 16,
-            totalBeats: 20,
+            playbackBeats: 4,
           });
         }),
     );
@@ -164,7 +163,7 @@ describe('Tempo Trainer transport controls', () => {
       expect.objectContaining({
         tempo: 90,
         beatsPerBar: 4,
-        barCount: 4,
+        barCount: 1,
       }),
     );
     expect(playPauseButton?.textContent?.trim()).toBe('⏸');
