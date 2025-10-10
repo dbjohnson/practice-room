@@ -157,6 +157,9 @@ function renderApp(root: HTMLElement): void {
   const tunerCanvas = document.createElement('canvas');
   tunerCanvas.className = 'tuner__canvas';
   tunerCanvas.setAttribute('aria-hidden', 'true');
+  const tunerContainer = document.createElement('div');
+  tunerContainer.className = 'tuner-container';
+  tunerContainer.append(tunerCanvas);
 
   deviationCanvas.className = 'deviation__canvas';
   deviationCanvas.setAttribute('aria-hidden', 'true');
@@ -167,7 +170,7 @@ function renderApp(root: HTMLElement): void {
   const CANVAS_PADDING = 8;
   const tunerContext = tunerCanvas.getContext('2d');
   const TUNER_STABILITY_MS = 200;
-  const TUNER_FREQUENCY_TOLERANCE = 0.8;
+  const TUNER_FREQUENCY_TOLERANCE = 1.6;
   const beatDeviations: Array<number | null> = [];
   let shouldResetDeviationHistory = true;
   let tunerStablePitch: Pitch | null = null;
@@ -323,10 +326,11 @@ function renderApp(root: HTMLElement): void {
       tunerCandidatePitch = null;
       tunerCandidateStartMs = null;
     } else if (tunerStablePitch) {
-      if (Math.abs(pitch.frequency - tunerStablePitch.frequency) <= TUNER_FREQUENCY_TOLERANCE) {
+      const withinTolerance =
+        Math.abs(pitch.frequency - tunerStablePitch.frequency) <= TUNER_FREQUENCY_TOLERANCE;
+      if (withinTolerance) {
         tunerStablePitch = pitch;
         tunerCandidatePitch = pitch;
-        tunerCandidateStartMs = nowMs;
       } else {
         tunerStablePitch = null;
         tunerCandidatePitch = pitch;
@@ -339,7 +343,10 @@ function renderApp(root: HTMLElement): void {
       } else if (
         Math.abs(pitch.frequency - tunerCandidatePitch.frequency) <= TUNER_FREQUENCY_TOLERANCE
       ) {
-        if (tunerCandidateStartMs !== null && nowMs - tunerCandidateStartMs >= TUNER_STABILITY_MS) {
+        if (
+          tunerCandidateStartMs !== null &&
+          nowMs - tunerCandidateStartMs >= TUNER_STABILITY_MS
+        ) {
           tunerStablePitch = pitch;
         }
       } else {
@@ -945,6 +952,7 @@ function renderApp(root: HTMLElement): void {
     renderProgressCanvas();
     renderSequencerCanvas();
     renderDeviationCanvas();
+    renderTunerCanvas(tunerStablePitch, performance.now());
   };
 
   window.addEventListener('resize', resizeCanvas, { passive: true });
@@ -1110,9 +1118,30 @@ function renderApp(root: HTMLElement): void {
   const tunerToggleControl = createToggleControl({
     id: 'tuner',
     label: 'Enable Tuner',
-    defaultValue: true,
+    defaultValue: false,
   });
   const tunerToggleInput = tunerToggleControl.input;
+  tunerToggleControl.element.style.display = 'none';
+  const tunerToggleButton = document.createElement('button');
+  tunerToggleButton.type = 'button';
+  tunerToggleButton.className = 'calibrate-button tuner-toggle-button';
+  tunerToggleButton.title = 'Toggle tuner';
+  tunerToggleButton.setAttribute('aria-pressed', 'false');
+  tunerToggleButton.setAttribute('aria-label', 'Toggle tuner');
+  tunerToggleButton.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+      <path d="M8 3v6a4 4 0 0 0 8 0V3" />
+      <line x1="12" y1="13" x2="12" y2="21" />
+      <line x1="9" y1="21" x2="15" y2="21" />
+    </svg>
+  `;
+  tunerContainer.append(tunerToggleButton);
+  tunerEnabled = tunerToggleInput.checked;
+
+  const updateTunerToggleVisual = () => {
+    tunerToggleButton.classList.toggle('tuner-toggle-button--active', tunerEnabled);
+    tunerToggleButton.setAttribute('aria-pressed', tunerEnabled ? 'true' : 'false');
+  };
 
   const audioInputControl = createSelectControl({
     id: 'audio-input',
@@ -1284,10 +1313,16 @@ function renderApp(root: HTMLElement): void {
       if (tunerEnabled && !isPlaybackActive) {
         startTunerLoop();
       }
-    } else if (!shouldBeActive && microphone.isCapturing()) { // This logic seems to be buggy, let's fix it.
+    } else if (!shouldBeActive && microphone.isCapturing()) {
       await microphone.stop();
       // The tuner loop is stopped inside microphone.stop() via reset()
       // but we also need to clear the animation frame
+      stopTunerLoop();
+    }
+
+    if (tunerEnabled && microphone.isCapturing()) {
+      startTunerLoop();
+    } else if (!tunerEnabled) {
       stopTunerLoop();
     }
   };
@@ -1366,10 +1401,19 @@ function renderApp(root: HTMLElement): void {
 
   sequencerCanvas.addEventListener('click', handleSequencerClick);
 
+  tunerToggleButton.addEventListener('click', () => {
+    tunerToggleInput.checked = !tunerToggleInput.checked;
+    tunerToggleInput.dispatchEvent(new Event('change'));
+  });
+
   tunerToggleInput.addEventListener('change', () => {
     tunerEnabled = tunerToggleInput.checked;
-    updateMicrophoneState();
+    updateTunerToggleVisual();
+    void updateMicrophoneState();
   });
+
+  updateTunerToggleVisual();
+  renderTunerCanvas(null, performance.now());
 
 
   const transport = document.createElement('div');
@@ -1586,7 +1630,7 @@ function renderApp(root: HTMLElement): void {
 
   deviationContainer.append(deviationCanvas, calibrateButton);
 
-  page.append(form, progressSection, sequencerCanvas, deviationContainer, tunerCanvas);
+  page.append(form, progressSection, sequencerCanvas, deviationContainer, tunerContainer);
 
   root.replaceChildren(page);
 

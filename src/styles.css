@@ -261,3 +261,25 @@ body {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
   transition: opacity 0.3s ease-in-out;
 }
+
+.tuner-container {
+  position: relative;
+  width: 100%;
+}
+
+.tuner-toggle-button {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  padding: 0.4rem;
+  opacity: 0.45;
+  transition: opacity 0.2s ease;
+}
+
+.tuner-toggle-button svg {
+  display: block;
+}
+
+.tuner-toggle-button--active {
+  opacity: 1;
+}
