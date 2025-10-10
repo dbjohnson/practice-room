@@ -1,5 +1,6 @@
 export interface MetronomeSchedule {
   audioContext: AudioContext;
+  pattern: boolean[];
   startTime: number;
   playbackStartTime: number;
   playbackDuration: number;
@@ -15,6 +16,7 @@ export interface MetronomeOptions {
   beatsPerBar: number;
   barCount: number;
   onSchedule?: (schedule: MetronomeSchedule) => void;
+  pattern?: boolean[];
 }
 
 const CLICK_ATTACK = 0.004;
@@ -33,6 +35,10 @@ type ScheduledClick = {
   stopTime: number;
 };
 
+export function getScheduledClicks(): ScheduledClick[] {
+  return scheduledClicks;
+}
+
 let audioContext: AudioContext | null = null;
 let activeCleanup: (() => Promise<void>) | null = null;
 
@@ -48,32 +54,43 @@ export function getMetronomeContext(): AudioContext {
   return getAudioContext();
 }
 
+let scheduledClicks: ScheduledClick[] = [];
 function scheduleClick(
   ctx: AudioContext,
   when: number,
   isAccent: boolean,
+  pattern: boolean[] | undefined,
+  beatIndex: number,
   scheduled: ScheduledClick[],
 ): void {
   const oscillator = ctx.createOscillator();
   const gain = ctx.createGain();
+  const patternGain = ctx.createGain();
 
-  oscillator.type = 'triangle';
+  oscillator.type = 'triangle'; // Reverted from 'sine' for a sharper click
   oscillator.frequency.value = isAccent ? ACCENT_FREQUENCY : REGULAR_FREQUENCY;
 
   const gainLevel = isAccent ? ACCENT_GAIN : REGULAR_GAIN;
   gain.gain.setValueAtTime(0.0001, when);
   gain.gain.linearRampToValueAtTime(gainLevel, when + CLICK_ATTACK);
-  gain.gain.exponentialRampToValueAtTime(0.0001, when + CLICK_DURATION);
+  gain.gain.linearRampToValueAtTime(0.0001, when + CLICK_DURATION);
+
+  // Set initial gain based on the pattern.
+  // It's 1 if the beat is active, and 0 if it's muted.
+  const isPlaybackBeat = beatIndex >= 0;
+  patternGain.gain.value =
+    !isPlaybackBeat || !pattern || pattern[beatIndex] ? 1.0 : 0.0;
 
   oscillator.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(patternGain);
+  patternGain.connect(ctx.destination);
 
   oscillator.start(when);
   oscillator.stop(when + CLICK_DURATION);
 
   scheduled.push({
     oscillator,
-    gain,
+    gain: patternGain, // Store the controllable gain node
     startTime: when,
     stopTime: when + CLICK_DURATION,
   });
@@ -90,6 +107,7 @@ export async function startMetronome({
   beatsPerBar,
   barCount,
   onSchedule,
+  pattern,
 }: MetronomeOptions): Promise<void> {
   if (tempo <= 0) {
     throw new Error('Tempo must be positive');
@@ -122,12 +140,12 @@ export async function startMetronome({
     playbackDuration,
     secondsPerBeat,
     countInBeats,
+    pattern: pattern || [],
     beatsPerBar,
     playbackBeats,
     totalBeats,
   });
 
-  let scheduledClicks: ScheduledClick[] = [];
   let stopped = false;
   let loopTimer: ReturnType<typeof setTimeout> | null = null;
   let resolvePlayback: (() => void) | null = null;
@@ -211,10 +229,19 @@ export async function startMetronome({
       totalBeats: totalBeatsThisLoop,
     });
 
-    for (let beat = 0; beat < totalBeatsThisLoop; beat += 1) {
+    // Schedule count-in beats
+    for (let beat = 0; beat < countIn; beat++) {
+      const beatTime = loopStartTime + beat * secondsPerBeat;
+      const isAccent = beat % beatsPerBar === 0; // Count-in is always accented on the downbeat
+      scheduleClick(ctx, beatTime, isAccent, undefined, -1, scheduledClicks);
+    }
+
+    // Schedule playback beats based on the pattern
+    for (let beat = 0; beat < playbackBeats; beat++) {
       const beatTime = loopStartTime + beat * secondsPerBeat;
       const isAccent = beat % beatsPerBar === 0;
-      scheduleClick(ctx, beatTime, isAccent, scheduledClicks);
+      // Always schedule the click; its gain will be 0 if toggled off in the pattern.
+      scheduleClick(ctx, beatTime, isAccent, pattern, beat, scheduledClicks);
     }
 
     const nextLoopStart =

@@ -112,8 +112,7 @@ body {
   background: rgba(8, 15, 27, 0.55);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08),
     0 14px 32px rgba(4, 12, 22, 0.45);
-  display: block;
-  margin: 5px;
+  display: block; /* margin removed */
 }
 
 .deviation__canvas {
@@ -123,7 +122,7 @@ body {
   background: rgba(8, 15, 27, 0.55);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06),
     0 12px 28px rgba(4, 12, 22, 0.3);
-  margin: 5px;
+  /* margin: 5px; */ /* This was commented out in a previous change, removing it fully */
   margin-top: 0.5rem;
   display: block;
 }
@@ -206,4 +205,11 @@ body {
 .control__input:focus {
   outline: 2px solid rgba(110, 176, 255, 0.9);
   outline-offset: 2px;
+}
+
+.sequencer__canvas {
+  width: 100%;
+  height: 40px;
+  margin-top: 0.5rem;
+  cursor: pointer;
 }

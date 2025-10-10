@@ -1,6 +1,7 @@
 import './styles.css';
 import {
   getMetronomeContext,
+  getScheduledClicks,
   startMetronome,
   stopMetronome,
 } from './audio/metronome';
@@ -70,10 +71,13 @@ function renderApp(root: HTMLElement): void {
   const progressSection = document.createElement('section');
   progressSection.className = 'progress';
 
-const progressCanvas = document.createElement('canvas');
-progressCanvas.className = 'progress__canvas';
-progressCanvas.setAttribute('aria-hidden', 'true');
+  const progressCanvas = document.createElement('canvas');
+  progressCanvas.className = 'progress__canvas';
+  progressCanvas.setAttribute('aria-hidden', 'true');
 
+  const sequencerCanvas = document.createElement('canvas');
+  sequencerCanvas.id = 'sequencer';
+  sequencerCanvas.className = 'sequencer__canvas';
 
   const microphone = new MicrophoneRecorder();
   const timingAnalyzer = new TimingAnalyzer();
@@ -234,6 +238,7 @@ progressCanvas.setAttribute('aria-hidden', 'true');
   };
 
   const canvasContext = progressCanvas.getContext('2d');
+  const sequencerContext = sequencerCanvas.getContext('2d');
   if (!canvasContext || !deviationContext) {
     console.warn('Progress canvas unavailable; visuals will be limited');
   }
@@ -244,6 +249,8 @@ progressCanvas.setAttribute('aria-hidden', 'true');
   let canvasCssHeight = 0;
   let deviationCssWidth = 0;
   let deviationCssHeight = 0;
+  let sequencerCssWidth = 0;
+  let sequencerCssHeight = 0;
   let countdownValue: number | null = null;
   let progressBeatsPerBar = 0;
   let progressBarCount = 0;
@@ -252,6 +259,94 @@ progressCanvas.setAttribute('aria-hidden', 'true');
   let currentSecondsPerBeat = 1;
   let totalBeatsPerPattern = 1;
   let evaluatedCount = 0;
+  let pattern: boolean[] = [];
+
+  const renderSequencerCanvas = () => {
+    if (!sequencerContext || sequencerCssWidth <= 0 || sequencerCssHeight <= 0) {
+      return;
+    }
+
+    sequencerContext.clearRect(0, 0, sequencerCssWidth, sequencerCssHeight);
+
+    const pad = CANVAS_PADDING;
+    const drawWidth = Math.max(sequencerCssWidth - pad * 2, 0);
+    const drawHeight = Math.max(sequencerCssHeight - pad * 2, 0);
+    if (drawWidth <= 0 || drawHeight <= 0) {
+      return;
+    }
+
+    const totalBeats = totalBeatsPerPattern;
+    if (totalBeats <= 0) {
+      return;
+    }
+
+    const beatWidth = drawWidth / totalBeats;
+    const buttonHeight = Math.min(drawHeight, 24);
+    const buttonY = (drawHeight - buttonHeight) / 2;
+    const buttonGap = 4;
+    const buttonWidth = beatWidth - buttonGap;
+
+    for (let i = 0; i < totalBeats; i++) {
+      const buttonX = pad + i * beatWidth + buttonGap / 2;
+      const isAccent = i % progressBeatsPerBar === 0;
+      const isChecked = pattern[i];
+
+      sequencerContext.beginPath();
+      sequencerContext.roundRect(buttonX, buttonY, buttonWidth, buttonHeight, 4);
+
+      if (isChecked) {
+        sequencerContext.fillStyle = isAccent ? '#f5a623' : '#4a90e2';
+        sequencerContext.strokeStyle = isAccent ? '#f8c471' : '#7ab3f0';
+      } else {
+        sequencerContext.fillStyle = '#3a4a65';
+        sequencerContext.strokeStyle = '#5a6c89';
+      }
+
+      sequencerContext.fill();
+      sequencerContext.lineWidth = 1;
+      sequencerContext.stroke();
+    }
+  };
+
+  const handleSequencerClick = (event: MouseEvent) => {
+    const rect = sequencerCanvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+
+    const pad = CANVAS_PADDING;
+    const drawWidth = Math.max(sequencerCssWidth - pad * 2, 0);
+    const totalBeats = totalBeatsPerPattern;
+    if (totalBeats <= 0 || drawWidth <= 0) return;
+
+    const beatWidth = drawWidth / totalBeats;
+    const clickedBeat = Math.floor((x - pad) / beatWidth);
+
+    if (clickedBeat >= 0 && clickedBeat < totalBeats) {
+      pattern[clickedBeat] = !pattern[clickedBeat];
+      renderSequencerCanvas();
+      updateMetronomePattern(clickedBeat, pattern[clickedBeat]);
+    }
+  };
+
+  const updateMetronomePattern = (beatIndex: number, isEnabled: boolean) => {
+    if (!scheduleInfo) {
+      return;
+    }
+
+    const scheduledClicks = getScheduledClicks();
+    const { playbackStartTime, secondsPerBeat } = scheduleInfo;
+    const expectedTime = playbackStartTime + beatIndex * secondsPerBeat;
+
+    // Find the click corresponding to the toggled beat
+    const click = scheduledClicks.find(
+      (c) => Math.abs(c.startTime - expectedTime) < 0.001,
+    );
+
+    click?.gain.gain.setValueAtTime(isEnabled ? 1.0 : 0.0, 0);
+  };
+
+  // A variable to hold the schedule info from the metronome
+  // so we can access it in the click handlers.
+  let scheduleInfo: MetronomeSchedule | null = null;
 
   const renderProgressCanvas = () => {
     if (canvasCssWidth <= 0 || canvasCssHeight <= 0) {
@@ -464,12 +559,24 @@ progressCanvas.setAttribute('aria-hidden', 'true');
       return;
     }
 
+    const sequencerRect = sequencerCanvas.getBoundingClientRect();
+    sequencerCssWidth = sequencerRect.width;
+    sequencerCssHeight = sequencerRect.height;
+    sequencerCanvas.width = Math.max(1, Math.round(sequencerRect.width * dpr));
+    sequencerCanvas.height = Math.max(1, Math.round(sequencerRect.height * dpr));
+    if (!sequencerContext) {
+      return;
+    }
+
     canvasContext.setTransform(1, 0, 0, 1, 0, 0);
     canvasContext.scale(dpr, dpr);
     deviationContext.setTransform(1, 0, 0, 1, 0, 0);
     deviationContext.scale(dpr, dpr);
+    sequencerContext.setTransform(1, 0, 0, 1, 0, 0);
+    sequencerContext.scale(dpr, dpr);
 
     renderProgressCanvas();
+    renderSequencerCanvas();
     renderDeviationCanvas();
   };
 
@@ -496,6 +603,7 @@ progressCanvas.setAttribute('aria-hidden', 'true');
 
   const startProgressAnimation = ({
     audioContext,
+    pattern: metronomePattern,
     startTime,
     playbackStartTime,
     playbackDuration,
@@ -507,6 +615,7 @@ progressCanvas.setAttribute('aria-hidden', 'true');
     stopProgressAnimation();
     microphone.clearPeaks();
     timingAnalyzer.startCycle(playbackStartTime, secondsPerBeat, playbackBeats);
+    scheduleInfo = { audioContext, pattern: metronomePattern, startTime, playbackStartTime, playbackDuration, secondsPerBeat, countInBeats, beatsPerBar, playbackBeats };
     timingWindowStart = playbackStartTime;
     timingWindowDuration = Math.max(secondsPerBeat * playbackBeats, 0.001);
     currentSecondsPerBeat = secondsPerBeat || currentSecondsPerBeat;
@@ -709,6 +818,15 @@ progressCanvas.setAttribute('aria-hidden', 'true');
     readPositiveInteger(tempoInput, DEFAULTS.tempoBpm, true);
   });
 
+  const updateSequencerState = () => {
+    const beatsPerBar = readPositiveInteger(beatsPerBarInput, DEFAULTS.beatsPerBar);
+    const barCount = readPositiveInteger(barCountInput, DEFAULTS.barCount);
+    const playbackBeats = beatsPerBar * barCount;
+    totalBeatsPerPattern = playbackBeats;
+    pattern = Array(playbackBeats).fill(true);
+    renderSequencerCanvas();
+  };
+
   const updateManualGainState = () => {
     const autoEnabled = autoGainCheckbox.checked;
     manualGainSlider.disabled = autoEnabled;
@@ -737,7 +855,10 @@ progressCanvas.setAttribute('aria-hidden', 'true');
   requestAnimationFrame(() => {
     updateBarGuides();
     initializeCanvas();
+    updateSequencerState();
   });
+
+  sequencerCanvas.addEventListener('click', handleSequencerClick);
 
   const transport = document.createElement('div');
   transport.className = 'transport';
@@ -774,6 +895,7 @@ progressCanvas.setAttribute('aria-hidden', 'true');
   };
 
   const finalizePlayback = (errored: boolean) => {
+    scheduleInfo = null;
     playbackPromise = null;
     stopProgressAnimation();
     void microphone.stop();
@@ -837,6 +959,7 @@ progressCanvas.setAttribute('aria-hidden', 'true');
         tempo,
         beatsPerBar,
         barCount,
+        pattern,
         onSchedule: startProgressAnimation,
       });
     } catch (error) {
@@ -857,6 +980,10 @@ progressCanvas.setAttribute('aria-hidden', 'true');
         finalizePlayback(true);
       });
   };
+
+  beatsPerBarInput.addEventListener('change', updateSequencerState);
+  barCountInput.addEventListener('change', updateSequencerState);
+  tempoInput.addEventListener('change', updateSequencerState);
 
   const stopPlayback = async () => {
     if (!playbackPromise) {
@@ -929,7 +1056,7 @@ progressCanvas.setAttribute('aria-hidden', 'true');
     transport,
     gainControls,
   );
-  page.append(form, progressSection, deviationCanvas);
+  page.append(form, progressSection, sequencerCanvas, deviationCanvas);
 
   root.replaceChildren(page);
 }
