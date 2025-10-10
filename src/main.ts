@@ -257,33 +257,28 @@ function renderApp(root: HTMLElement): void {
     points.sort((a, b) => a.age - b.age);
     const maxAge = Math.max(maxBeats - 1, 1);
 
-    const plotBeatLine = (
+    const plotBeatStems = (
       accessor: (point: { age: number; raw: number | null }) => number | null,
       color: string,
     ) => {
       deviationContext.strokeStyle = color;
       deviationContext.lineWidth = 2;
       deviationContext.beginPath();
-      let started = false;
       points.forEach((point) => {
         const normalizedX = point.age / maxAge;
         const x = pad + normalizedX * drawWidth;
         const rawValue = accessor(point);
         if (rawValue === null || Number.isNaN(rawValue)) {
-          started = false;
           return;
         }
         const value = Math.max(-verticalRange, Math.min(verticalRange, rawValue));
         const y = centerY - (value / verticalRange) * (drawHeight / 2);
-        if (!started) {
-          deviationContext.moveTo(x, y);
-          started = true;
-        } else {
-          deviationContext.lineTo(x, y);
-        }
+        deviationContext.moveTo(x, centerY);
+        deviationContext.lineTo(x, y);
       });
       deviationContext.stroke();
 
+      deviationContext.fillStyle = color;
       points.forEach((point) => {
         const normalizedX = point.age / maxAge;
         const x = pad + normalizedX * drawWidth;
@@ -294,13 +289,12 @@ function renderApp(root: HTMLElement): void {
         const value = Math.max(-verticalRange, Math.min(verticalRange, rawValue));
         const y = centerY - (value / verticalRange) * (drawHeight / 2);
         deviationContext.beginPath();
-        deviationContext.fillStyle = color;
         deviationContext.arc(x, y, 3, 0, Math.PI * 2);
         deviationContext.fill();
       });
     };
 
-    plotBeatLine((point) => point.raw, '#ffffff');
+    plotBeatStems((point) => point.raw, '#ffffff');
   };
 
   const renderTunerCanvas = (pitch: Pitch | null, timestampMs: number) => {
