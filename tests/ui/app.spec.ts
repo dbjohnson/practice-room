@@ -96,7 +96,7 @@ describe('Tempo Trainer transport controls', () => {
     expect(tempoSelect?.value).toBe('90');
     expect(beatsSelect?.value).toBe('4');
     expect(barsSelect?.value).toBe('1');
-    expect(latencyInput?.value).toBe('20');
+    expect(latencyInput?.value).toBe('80');
     expect(progressCanvas).toBeTruthy();
     expect(playPauseButton?.textContent?.trim()).toBe('▶');
     expect(playPauseButton?.dataset.state).toBe('idle');

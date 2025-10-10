@@ -92,6 +92,9 @@ function renderApp(root: HTMLElement): void {
   progressSection.append(progressContainer);
 
   const deviationCanvas = document.createElement('canvas');
+  const deviationContainer = document.createElement('div');
+  deviationContainer.className = 'deviation-container';
+
   deviationCanvas.className = 'deviation__canvas';
   deviationCanvas.setAttribute('aria-hidden', 'true');
 
@@ -150,18 +153,6 @@ function renderApp(root: HTMLElement): void {
     deviationContext.moveTo(pad, centerY);
     deviationContext.lineTo(pad + drawWidth, centerY);
     deviationContext.stroke();
-
-    deviationContext.setLineDash([6, 6]);
-    deviationContext.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-    const toleranceRatios = [0.1, 0.9];
-    for (const ratio of toleranceRatios) {
-      const y = pad + drawHeight * ratio;
-      deviationContext.beginPath();
-      deviationContext.moveTo(pad, y);
-      deviationContext.lineTo(pad + drawWidth, y);
-      deviationContext.stroke();
-    }
-    deviationContext.setLineDash([]);
 
     const totalPatterns = MAX_HISTORY;
     const denominatorTicks = Math.max(totalPatterns, 1);
@@ -371,6 +362,35 @@ function renderApp(root: HTMLElement): void {
     );
 
     click?.patternGain.gain.setValueAtTime(isEnabled ? 1.0 : 0.0, 0);
+  };
+
+  const calibrateLatency = () => {
+    const evaluations = timingAnalyzer.getCumulativeEvaluations();
+    const validHits = evaluations.filter(e => e.delta !== undefined && e.delta !== null);
+
+    if (validHits.length < 5) {
+      console.warn('Not enough data to calibrate latency. Please play a few more notes.');
+      return;
+    }
+
+    const averageDelta = validHits.reduce((sum, hit) => sum + (hit.delta ?? 0), 0) / validHits.length;
+
+    const currentLatencySec = readPositiveInteger(latencyInput, 80, false) / 1000;
+    const newLatencySec = currentLatencySec + averageDelta;
+
+    const newLatency = Math.round(newLatencySec * 1000);
+    const minLatency = Number(latencyInput.min) || 0;
+    const maxLatency = Number(latencyInput.max) || 200;
+
+    latencyInput.value = String(Math.max(minLatency, Math.min(maxLatency, newLatency)));
+
+    // Reset history to show the new calibration
+    beatDeviations.length = 0;
+    evaluatedCount = 0;
+    timingAnalyzer.reset();
+    microphone.clearPeaks();
+    renderDeviationCanvas();
+    renderProgressCanvas();
   };
 
   // A variable to hold the schedule info from the metronome
@@ -674,7 +694,7 @@ function renderApp(root: HTMLElement): void {
       let shouldContinue = true;
       microphone.captureSample(now, playbackStartTime, playbackDuration);
 
-    const latencyMs = readPositiveInteger(latencyInput, 20);
+    const latencyMs = readPositiveInteger(latencyInput, 80);
     const latencySec = latencyMs / 1000;
 
       const freshPeaks = microphone.consumePeaks();
@@ -757,8 +777,9 @@ function renderApp(root: HTMLElement): void {
   const latencyControl = createNumberControl({
     id: 'latency',
     label: 'Latency (ms)',
-    defaultValue: 20,
+    defaultValue: 80,
     min: 0,
+    max: 200,
     step: 1,
   });
 
@@ -816,6 +837,11 @@ function renderApp(root: HTMLElement): void {
   const barCountInput = barCountControl.input;
   const latencyInput = latencyControl.input;
 
+  // This function is defined twice, let's consolidate
+  // const readPositiveInteger = ...
+
+  // ...
+
   const readPositiveInteger = (
     input: HTMLInputElement,
     fallback: number,
@@ -823,12 +849,13 @@ function renderApp(root: HTMLElement): void {
   ): number => {
     const parsed = Number.parseInt(input.value, 10);
     if (Number.isNaN(parsed) || parsed < 1) {
+      const min = Number(input.min) || 1;
       if (commit) {
         input.value = String(fallback);
       }
       return fallback;
     }
-    const normalized = Math.floor(parsed);
+    const normalized = Math.floor(Math.max(Number(input.min) || 0, parsed));
     if (commit) {
       input.value = String(normalized);
     }
@@ -1098,10 +1125,6 @@ function renderApp(root: HTMLElement): void {
   });
 
   const handleTransportShortcut = (event: KeyboardEvent) => {
-    if (event.code !== 'Space' || event.repeat) {
-      return;
-    }
-
     const target = event.target as HTMLElement | null;
     if (
       target &&
@@ -1113,12 +1136,19 @@ function renderApp(root: HTMLElement): void {
       return;
     }
 
-    event.preventDefault();
+    if (event.code === 'KeyS' && !event.repeat) {
+      event.preventDefault();
+      calibrateLatency();
+      return;
+    }
 
-    if (playbackPromise) {
-      void stopPlayback();
-    } else {
-      void beginPlayback();
+    if (event.code === 'Space' && !event.repeat) {
+      event.preventDefault();
+      if (playbackPromise) {
+        void stopPlayback();
+      } else {
+        void beginPlayback();
+      }
     }
   };
 
@@ -1134,7 +1164,22 @@ function renderApp(root: HTMLElement): void {
     transport,
     gainControls,
   );
-  page.append(form, progressSection, sequencerCanvas, deviationCanvas);
+
+  const calibrateButton = document.createElement('button');
+  calibrateButton.type = 'button';
+  calibrateButton.className = 'calibrate-button';
+  calibrateButton.title = 'Auto-calibrate Latency (s)';
+  calibrateButton.innerHTML = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"></circle>
+      <polyline points="12 6 12 12 16 14"></polyline>
+    </svg>
+  `;
+  calibrateButton.addEventListener('click', calibrateLatency);
+
+  deviationContainer.append(deviationCanvas, calibrateButton);
+
+  page.append(form, progressSection, sequencerCanvas, deviationContainer);
 
   root.replaceChildren(page);
 }
