@@ -34,6 +34,7 @@ jobs:
       - name: Deploy to S3
         run: |
           aws s3 sync ./dist s3://tempo-trainer --delete
+          aws s3 cp ./samples s3://tempo-trainer/samples --recursive
 
       - name: Invalidate CloudFront
         run: |
