@@ -32,7 +32,7 @@ export function frequencyToNote(frequency: number): { noteName: string; cents: n
   const noteName = noteStrings[noteNum % 12];
   const octave = Math.floor(noteNum / 12) - 1;
   const expectedFrequency = 440 * Math.pow(2, (noteNum - 69) / 12);
-  const cents = Math.floor(1200 * (Math.log(frequency / expectedFrequency) / Math.log(2)));
+  const cents = Math.round(1200 * (Math.log(frequency / expectedFrequency) / Math.log(2)));
 
   return {
     noteName: `${noteName}${octave}`,

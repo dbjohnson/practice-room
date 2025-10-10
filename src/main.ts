@@ -300,60 +300,133 @@ function renderApp(root: HTMLElement): void {
       return;
     }
 
-    const isActive = pitch && pitch.confidence > 0.7;
+    const pad = CANVAS_PADDING;
+    const drawWidth = Math.max(0, tunerCssWidth - pad * 2);
+    const drawHeight = Math.max(0, tunerCssHeight - pad * 2);
 
     tunerContext.clearRect(0, 0, tunerCssWidth, tunerCssHeight);
-    tunerContext.globalAlpha = isActive ? 1.0 : 0.4;
+    if (drawWidth <= 0 || drawHeight <= 0) {
+      return;
+    }
 
-    const pad = CANVAS_PADDING;
-    const drawWidth = tunerCssWidth - pad * 2;
-    const drawHeight = tunerCssHeight - pad * 2;
-    const centerX = pad + drawWidth / 2;
-    const centerY = pad + drawHeight / 2;
+    const confidence = pitch?.confidence ?? 0;
+    const hasPitch = Boolean(pitch && confidence >= 0.55);
+    const activePitch = hasPitch ? pitch : null;
 
-    // Draw center line
-    tunerContext.fillStyle = 'rgba(255, 255, 255, 0.5)';
-    tunerContext.fillRect(centerX - 0.5, pad, 1, drawHeight);
+    const { noteName, cents } = activePitch
+      ? frequencyToNote(activePitch.frequency)
+      : { noteName: '--', cents: 0 };
 
-    if (!isActive || !pitch) {
+    const centsRounded = activePitch ? Math.round(cents) : 0;
+    const centsDisplay = activePitch
+      ? `${centsRounded > 0 ? '+' : ''}${centsRounded}`
+      : '--';
+
+    const centsRange = 50;
+    const barStep = 2;
+    const barCount = Math.floor((centsRange * 2) / barStep) + 1;
+    const clampedCents = Math.max(-centsRange, Math.min(centsRange, cents));
+    const highlightIndex = activePitch
+      ? Math.round((clampedCents + centsRange) / barStep)
+      : null;
+    const inTuneThreshold = 2.5;
+    const inTune = activePitch ? Math.abs(cents) <= inTuneThreshold : false;
+
+    tunerContext.globalAlpha = hasPitch ? 1.0 : 0.4;
+
+    // Background gradient for subtle depth.
+    const gradient = tunerContext.createLinearGradient(
+      pad,
+      pad,
+      pad,
+      pad + drawHeight,
+    );
+    gradient.addColorStop(0, 'rgba(22, 32, 52, 0.75)');
+    gradient.addColorStop(1, 'rgba(12, 18, 30, 0.85)');
+    tunerContext.fillStyle = gradient;
+    tunerContext.fillRect(pad, pad, drawWidth, drawHeight);
+
+    const topLabelY = pad + Math.max(34, drawHeight * 0.11);
+    const noteBaseline = pad + drawHeight - Math.max(10, drawHeight * 0.08);
+    const meterCenterY = pad + drawHeight / 2;
+    const topGap = meterCenterY - (topLabelY + 26);
+    const bottomGap = noteBaseline - Math.max(32, drawHeight * 0.14) - meterCenterY;
+    const topBarMargin = Math.max(6, drawHeight * 0.03);
+    const bottomBarMargin = Math.max(8, drawHeight * 0.035);
+    const allowedTop = topGap - topBarMargin;
+    const allowedBottom = bottomGap - bottomBarMargin;
+    const maxHalfHeight = Math.max(12, Math.min(allowedTop, allowedBottom));
+    const baseHalfHeight = Math.max(12, Math.min(maxHalfHeight / 1.3, maxHalfHeight));
+
+    // Bars from -50 to +50 cents.
+    const labelMargin = Math.max(100, drawWidth * 0.12);
+    const meterLeft = pad + labelMargin;
+    const meterRight = pad + drawWidth - labelMargin;
+    if (meterRight <= meterLeft) {
       tunerContext.globalAlpha = 1.0;
       return;
     }
 
-    const { noteName, cents } = frequencyToNote(pitch.frequency);
+    const meterWidth = meterRight - meterLeft;
+    const spacing = barCount > 1 ? meterWidth / (barCount - 1) : meterWidth;
+    const barWidth = Math.max(2, spacing * 0.675);
+    const centerBarWidth = barWidth * 2;
+    const barHeight = Math.max(40, baseHalfHeight * 2);
+    const centerHalfHeight = Math.max(baseHalfHeight, maxHalfHeight);
+    const centerBarHeight = Math.max(barHeight * 1.3, centerHalfHeight * 2);
+    const zeroIndex = (barCount - 1) / 2;
+    const centerX = meterLeft + meterWidth / 2;
 
-    // Draw note name
-    const fontSize = Math.min(drawHeight * 0.6, 48);
-    tunerContext.font = `600 ${fontSize}px 'Segoe UI', Tahoma, sans-serif`;
-    tunerContext.textAlign = 'center';
-    tunerContext.textBaseline = 'middle';
-    tunerContext.fillStyle = 'rgba(246, 249, 255, 0.95)';
-    tunerContext.fillText(noteName, centerX, centerY);
+    for (let i = 0; i < barCount; i += 1) {
+      const isCenter = i === Math.round(zeroIndex);
+      const height = isCenter ? centerBarHeight : barHeight;
+      const width = isCenter ? centerBarWidth : barWidth;
+      const y = meterCenterY - height / 2;
+      const x = isCenter ? centerX : centerX + (i - zeroIndex) * spacing + ((centerBarWidth - barWidth) / 2 * (i < zeroIndex ? -1 : 1));
 
-    // Draw cents deviation bar
-    const centsRange = 50; // Show +/- 50 cents
-    const clampedCents = Math.max(-centsRange, Math.min(centsRange, cents));
-    const offset = (clampedCents / centsRange) * (drawWidth / 2);
+      const isHighlighted = highlightIndex !== null && i === highlightIndex;
+      const isCenterNeighbor = Math.abs(i - zeroIndex) <= 1;
 
-    const barX = centerX + offset;
-    const barWidth = 3;
-    const barHeight = drawHeight * 0.8;
-    const barY = pad + (drawHeight - barHeight) / 2;
+      let barColor = 'rgba(90, 115, 145, 0.35)';
+      if (highlightIndex !== null && inTune && isCenterNeighbor) {
+        barColor = '#3ddc97';
+      } else if (isHighlighted) {
+        barColor = inTune ? '#3ddc97' : '#ffca63';
+      } else if (isCenter) {
+        barColor = 'rgba(150, 190, 245, 0.6)';
+      }
 
-    let barColor = '#3ddc97'; // green for on-tune
-    if (Math.abs(cents) > 15) {
-      barColor = '#ff5d73'; // red for very off
-    } else if (Math.abs(cents) > 5) {
-      barColor = '#ffca63'; // yellow for slightly off
+      tunerContext.fillStyle = barColor;
+      tunerContext.beginPath();
+      tunerContext.roundRect(x - width / 2, y, width, height, 2);
+      tunerContext.fill();
     }
 
-    tunerContext.fillStyle = barColor;
-    tunerContext.shadowColor = barColor;
-    tunerContext.shadowBlur = 8;
-    tunerContext.fillRect(barX - barWidth / 2, barY, barWidth, barHeight);
+    // Left/right range labels.
+    const rangeFont = Math.min(18, drawHeight * 0.12);
+    tunerContext.font = `500 ${rangeFont}px 'Segoe UI', Tahoma, sans-serif`;
+    tunerContext.fillStyle = 'rgba(210, 220, 240, 0.7)';
+    tunerContext.textBaseline = 'middle';
+    tunerContext.textAlign = 'left';
+    tunerContext.fillText('-50', meterLeft - labelMargin * 0.4, meterCenterY);
+    tunerContext.textAlign = 'right';
+    tunerContext.fillText('+50', meterRight + labelMargin * 0.4, meterCenterY);
 
-    // Reset shadows and alpha for next draw cycle
-    tunerContext.shadowBlur = 0;
+    // Cents deviation label at top.
+    const centsFont = Math.min(28, drawHeight * 0.18);
+    tunerContext.font = `600 ${centsFont}px 'Segoe UI', Tahoma, sans-serif`;
+    tunerContext.textAlign = 'center';
+    tunerContext.textBaseline = 'alphabetic';
+    tunerContext.fillStyle = 'rgba(246, 249, 255, 0.92)';
+    tunerContext.fillText(centsDisplay, pad + drawWidth / 2, topLabelY);
+
+    // Note name at bottom.
+    const noteFont = Math.min(48, drawHeight * 0.26);
+    tunerContext.font = `700 ${noteFont}px 'Segoe UI', Tahoma, sans-serif`;
+    tunerContext.textBaseline = 'alphabetic';
+    tunerContext.fillStyle = 'rgba(246, 249, 255, 0.95)';
+    tunerContext.fillText(noteName, pad + drawWidth / 2, noteBaseline);
+
     tunerContext.globalAlpha = 1.0;
   };
 
@@ -998,7 +1071,7 @@ function renderApp(root: HTMLElement): void {
   const tunerToggleControl = createToggleControl({
     id: 'tuner',
     label: 'Enable Tuner',
-    defaultValue: false,
+    defaultValue: true,
   });
   const tunerToggleInput = tunerToggleControl.input;
 

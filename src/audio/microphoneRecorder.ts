@@ -1,5 +1,5 @@
 const WAVEFORM_RESOLUTION = 1024;
-const ANALYSER_FFT_SIZE = 2048;
+const ANALYSER_FFT_SIZE = 4096;
 const TARGET_WAVEFORM_PEAK = 0.5;
 const GAIN_SMOOTHING = 0.003;
 const SILENCE_THRESHOLD = 0.02;
@@ -11,6 +11,17 @@ const SILENCE_RELEASE_FACTOR = 0.95;
 const PEAK_THRESHOLD = 0.1;
 const MIN_PEAK_INTERVAL = 0.05;
 const ATTACK_SLOPE_MIN = 0.015;
+const MIN_TUNER_FREQUENCY = 40;
+const MAX_TUNER_FREQUENCY = 2000;
+const MIN_TUNER_CONFIDENCE = 0.6;
+const PITCH_SILENCE_RMS = 0.001;
+const YIN_THRESHOLD = 0.2;
+const PITCH_HISTORY_SIZE = 7;
+const PITCH_SMOOTHING_ALPHA = 0.18;
+const PITCH_SMOOTHING_FAST_ALPHA = 0.45;
+const PITCH_SMOOTHING_FAST_THRESHOLD = 8;
+const PITCH_HOLD_FRAMES = 4;
+const PITCH_HOLD_DECAY = 0.12;
 
 export interface WaveformPeaks {
   min: Float32Array;
@@ -36,7 +47,10 @@ export class MicrophoneRecorder {
   private context: AudioContext | null = null;
   private capturing = false;
 
-  private readonly analyserBuffer = new Float32Array(ANALYSER_FFT_SIZE / 2);
+  private readonly analyserBuffer = new Float32Array(ANALYSER_FFT_SIZE);
+  private readonly pitchBuffer = new Float32Array(ANALYSER_FFT_SIZE);
+  private readonly differenceBuffer = new Float32Array(ANALYSER_FFT_SIZE / 2);
+  private readonly differenceRawBuffer = new Float32Array(ANALYSER_FFT_SIZE / 2);
   private readonly minPeaks = new Float32Array(WAVEFORM_RESOLUTION);
   private readonly maxPeaks = new Float32Array(WAVEFORM_RESOLUTION);
   private readonly filled = new Uint8Array(WAVEFORM_RESOLUTION);
@@ -48,7 +62,10 @@ export class MicrophoneRecorder {
   private lastSampleTime = 0;
   private detectedPeaks: Array<{ time: number; amplitude: number }> = [];
   private lastDetectedPeakTime = 0;
+  private readonly pitchHistory: number[] = [];
+  private smoothedFrequency: number | null = null;
   private pitch: Pitch | null = null;
+  private consecutiveInvalidPitchFrames = 0;
 
   async start(context: AudioContext): Promise<void> {
     if (!this.supported) {
@@ -107,14 +124,13 @@ export class MicrophoneRecorder {
       return;
     }
 
+    this.processAudio(now);
+
     const adjustedNow = now - latencySec;
     const progress = (adjustedNow - playbackStart) / playbackDuration;
     if (progress < 0 || progress > 1) {
       return;
     }
-
-    this.analyser.getFloatTimeDomainData(this.analyserBuffer);
-    this.lastSampleTime = now;
 
     let min = 1;
     let max = -1;
@@ -154,7 +170,6 @@ export class MicrophoneRecorder {
     const sampleRate = this.context?.sampleRate ?? 44100;
     const bufferLength = this.analyserBuffer.length;
     const bufferDuration = bufferLength / sampleRate;
-    const bufferStartTime = now - bufferDuration;
 
     let peakAmplitude = 0;
     let peakIndex = -1;
@@ -197,7 +212,6 @@ export class MicrophoneRecorder {
         this.detectedPeaks.push({ time: peakTime, amplitude: peakAmplitude });
       }
     }
-    this.updatePitch();
 
     if (this.filled[index]) {
       this.minPeaks[index] = Math.min(this.minPeaks[index], scaledMin);
@@ -213,63 +227,183 @@ export class MicrophoneRecorder {
     }
   }
 
+  processAudio(now: number): void {
+    if (!this.capturing || !this.analyser) {
+      return;
+    }
+    this.analyser.getFloatTimeDomainData(this.analyserBuffer);
+    this.lastSampleTime = now;
+
+    // This is where peak detection and pitch analysis should happen
+    // for both playback and standalone tuner.
+    this.updatePitch();
+  }
+
   private updatePitch(): void {
-    if (!this.analyser) {
-      this.pitch = null;
+    const context = this.context;
+    if (!this.analyser || !context) {
+      this.handleInvalidPitchFrame();
       return;
     }
 
+    const sampleRate = context.sampleRate;
     const buffer = this.analyserBuffer;
+    const working = this.pitchBuffer;
     const bufferSize = buffer.length;
-    const sampleRate = this.context?.sampleRate ?? 44100;
+    const difference = this.differenceBuffer;
+    const differenceRaw = this.differenceRawBuffer;
+    const minLag = Math.max(1, Math.floor(sampleRate / MAX_TUNER_FREQUENCY));
+    const maxLag = Math.min(
+      Math.floor(sampleRate / MIN_TUNER_FREQUENCY),
+      working.length / 2 - 2,
+    );
 
-    // 1. Calculate Root Mean Square (RMS) to check for silence
+    if (maxLag <= minLag) {
+      this.handleInvalidPitchFrame();
+      return;
+    }
+
+    // Copy buffer, remove DC, compute RMS to gate low-energy frames.
+    let sum = 0;
+    for (let i = 0; i < bufferSize; i += 1) {
+      const sample = buffer[i];
+      working[i] = sample;
+      sum += sample;
+    }
+
+    const mean = sum / bufferSize;
     let rms = 0;
-    for (let i = 0; i < bufferSize; i++) {
-      rms += buffer[i] * buffer[i];
+    for (let i = 0; i < bufferSize; i += 1) {
+      const centered = working[i] - mean;
+      working[i] = centered;
+      rms += centered * centered;
     }
     rms = Math.sqrt(rms / bufferSize);
 
-    if (rms < 0.01) { // Not enough signal
-      this.pitch = null;
+    if (!Number.isFinite(rms) || rms < PITCH_SILENCE_RMS) {
+      this.handleInvalidPitchFrame();
       return;
     }
 
-    // 2. Autocorrelation
-    const correlations = new Float32Array(bufferSize).fill(0);
-    for (let lag = 0; lag < bufferSize; lag++) {
-      for (let i = 0; i < bufferSize - lag; i++) {
-        correlations[lag] += buffer[i] * buffer[i + lag];
+    difference.fill(0, 0, maxLag + 1);
+    differenceRaw.fill(0, 0, maxLag + 1);
+    for (let lag = 1; lag <= maxLag; lag += 1) {
+      let sumSquares = 0;
+      for (let i = 0; i < bufferSize - lag; i += 1) {
+        const delta = working[i] - working[i + lag];
+        sumSquares += delta * delta;
+      }
+      differenceRaw[lag] = sumSquares;
+      difference[lag] = sumSquares;
+    }
+
+    let runningSum = 0;
+    for (let lag = 1; lag <= maxLag; lag += 1) {
+      runningSum += difference[lag];
+      difference[lag] =
+        runningSum === 0 ? 1 : (difference[lag] * lag) / runningSum;
+    }
+
+    let tau = -1;
+    for (let lag = minLag; lag <= maxLag; lag += 1) {
+      if (difference[lag] < YIN_THRESHOLD) {
+        tau = lag;
+        while (tau + 1 <= maxLag && difference[tau + 1] < difference[tau]) {
+          tau += 1;
+        }
+        break;
       }
     }
 
-    // 3. Find the peak in the correlations
-    let bestLag = -1;
-    let bestCorrelation = 0;
-    // Start search from a lag that corresponds to a reasonable minimum frequency
-    const minSamples = Math.floor(sampleRate / 2000); // Max freq: 2kHz
-    for (let lag = minSamples; lag < bufferSize; lag++) {
-      // Simple peak detection
-      if (correlations[lag] > bestCorrelation) {
-        bestCorrelation = correlations[lag];
-        bestLag = lag;
+    if (tau === -1) {
+      let bestValue = Number.POSITIVE_INFINITY;
+      for (let lag = minLag; lag <= maxLag; lag += 1) {
+        const value = difference[lag];
+        if (value < bestValue) {
+          bestValue = value;
+          tau = lag;
+        }
       }
     }
 
-    // 4. Calculate confidence and frequency
-    if (bestLag !== -1) {
-      // A good correlation is > 0.9 of the initial energy (lag 0)
-      const confidence = correlations[bestLag] / correlations[0];
-      if (confidence > 0.9) {
-        this.pitch = {
-          frequency: sampleRate / bestLag,
-          confidence,
-        };
-        return;
+    if (tau <= 0 || tau >= bufferSize) {
+      this.handleInvalidPitchFrame();
+      return;
+    }
+
+    let refinedTau = tau;
+    if (tau > 1 && tau < maxLag) {
+      const s0 = differenceRaw[tau - 1];
+      const s1 = differenceRaw[tau];
+      const s2 = differenceRaw[tau + 1];
+      const denominator = s0 - 2 * s1 + s2;
+      if (denominator !== 0) {
+        refinedTau = tau + 0.5 * (s0 - s2) / denominator;
       }
     }
 
-    this.pitch = null;
+    const frequency = sampleRate / refinedTau;
+    if (!Number.isFinite(frequency)) {
+      this.handleInvalidPitchFrame();
+      return;
+    }
+
+    const confidence = Math.max(0, Math.min(1, 1 - difference[tau]));
+    if (
+      confidence < MIN_TUNER_CONFIDENCE ||
+      frequency < MIN_TUNER_FREQUENCY ||
+      frequency > MAX_TUNER_FREQUENCY
+    ) {
+      this.handleInvalidPitchFrame();
+      return;
+    }
+
+    this.pitchHistory.push(frequency);
+    if (this.pitchHistory.length > PITCH_HISTORY_SIZE) {
+      this.pitchHistory.shift();
+    }
+
+    const sorted = [...this.pitchHistory].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    const baseFrequency = this.smoothedFrequency ?? median;
+    const delta = median - baseFrequency;
+    const alpha =
+      Math.abs(delta) > PITCH_SMOOTHING_FAST_THRESHOLD
+        ? PITCH_SMOOTHING_FAST_ALPHA
+        : PITCH_SMOOTHING_ALPHA;
+
+    this.smoothedFrequency = baseFrequency + alpha * delta;
+
+    this.pitch = {
+      frequency: this.smoothedFrequency ?? frequency,
+      confidence,
+    };
+    this.consecutiveInvalidPitchFrames = 0;
+  }
+
+  private handleInvalidPitchFrame(): void {
+    this.consecutiveInvalidPitchFrames += 1;
+    if (!this.pitch) {
+      if (this.consecutiveInvalidPitchFrames > PITCH_HOLD_FRAMES) {
+        this.resetPitchState();
+      }
+      return;
+    }
+
+    if (this.consecutiveInvalidPitchFrames > PITCH_HOLD_FRAMES) {
+      this.resetPitchState();
+      return;
+    }
+
+    const reducedConfidence = Math.max(
+      0,
+      this.pitch.confidence - PITCH_HOLD_DECAY,
+    );
+
+    this.pitch = {
+      frequency: this.pitch.frequency,
+      confidence: reducedConfidence,
+    };
   }
 
   reset(): void {
@@ -286,7 +420,7 @@ export class MicrophoneRecorder {
     this.lastIndex = -1;
     this.detectedPeaks = [];
     this.lastDetectedPeakTime = 0;
-    this.pitch = null;
+    this.resetPitchState();
   }
 
   async stop(): Promise<void> {
@@ -357,6 +491,13 @@ export class MicrophoneRecorder {
     const peaks = this.detectedPeaks;
     this.detectedPeaks = [];
     return peaks;
+  }
+
+  private resetPitchState(): void {
+    this.pitchHistory.length = 0;
+    this.smoothedFrequency = null;
+    this.pitch = null;
+    this.consecutiveInvalidPitchFrames = 0;
   }
 
   private disconnectNodes(): void {
