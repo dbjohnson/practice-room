@@ -4,6 +4,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   base: './',
+  publicDir: 'public',
   resolve: {
     alias: {
       '@audio': path.resolve(__dirname, 'src/audio'),
