@@ -84,6 +84,8 @@ describe('Tempo Trainer transport controls', () => {
     const barsSelect = document.querySelector<HTMLSelectElement>('#barCount');
     const playPauseButton =
       document.querySelector<HTMLButtonElement>('#playPauseButton');
+    const latencyInput =
+      document.querySelector<HTMLInputElement>('#latency');
     const progressCanvas =
       document.querySelector<HTMLCanvasElement>('.progress__canvas');
     const autoGainCheckbox =
@@ -94,6 +96,7 @@ describe('Tempo Trainer transport controls', () => {
     expect(tempoSelect?.value).toBe('90');
     expect(beatsSelect?.value).toBe('4');
     expect(barsSelect?.value).toBe('1');
+    expect(latencyInput?.value).toBe('20');
     expect(progressCanvas).toBeTruthy();
     expect(playPauseButton?.textContent?.trim()).toBe('▶');
     expect(playPauseButton?.dataset.state).toBe('idle');

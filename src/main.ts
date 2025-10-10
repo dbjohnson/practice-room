@@ -673,9 +673,14 @@ function renderApp(root: HTMLElement): void {
       const now = audioContext.currentTime;
       let shouldContinue = true;
       microphone.captureSample(now, playbackStartTime, playbackDuration);
+
+    const latencyMs = readPositiveInteger(latencyInput, 20);
+    const latencySec = latencyMs / 1000;
+
       const freshPeaks = microphone.consumePeaks();
       if (freshPeaks.length > 0) {
-        timingAnalyzer.addPeaks(freshPeaks);
+      const adjustedPeaks = freshPeaks.map(p => ({ ...p, time: p.time - latencySec }));
+      timingAnalyzer.addPeaks(adjustedPeaks);
       }
       const beatEvaluations = timingAnalyzer.evaluate(now);
       if (beatEvaluations.length > 0) {
@@ -749,6 +754,14 @@ function renderApp(root: HTMLElement): void {
     step: 1,
   });
 
+  const latencyControl = createNumberControl({
+    id: 'latency',
+    label: 'Latency (ms)',
+    defaultValue: 20,
+    min: 0,
+    step: 1,
+  });
+
   const gainControls = document.createElement('div');
   gainControls.className = 'gain-controls';
 
@@ -801,6 +814,7 @@ function renderApp(root: HTMLElement): void {
   const tempoInput = tempoControl.input;
   const beatsPerBarInput = beatsPerBarControl.input;
   const barCountInput = barCountControl.input;
+  const latencyInput = latencyControl.input;
 
   const readPositiveInteger = (
     input: HTMLInputElement,
@@ -1116,6 +1130,7 @@ function renderApp(root: HTMLElement): void {
     tempoControl.element,
     beatsPerBarControl.element,
     barCountControl.element,
+    latencyControl.element,
     transport,
     gainControls,
   );
