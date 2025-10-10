@@ -19,6 +19,12 @@ export interface WaveformPeaks {
   gain: number;
 }
 
+export interface Pitch {
+  frequency: number;
+  confidence: number;
+}
+
+
 export class MicrophoneRecorder {
   private readonly supported =
     typeof navigator !== 'undefined' &&
@@ -42,6 +48,7 @@ export class MicrophoneRecorder {
   private lastSampleTime = 0;
   private detectedPeaks: Array<{ time: number; amplitude: number }> = [];
   private lastDetectedPeakTime = 0;
+  private pitch: Pitch | null = null;
 
   async start(context: AudioContext): Promise<void> {
     if (!this.supported) {
@@ -86,24 +93,36 @@ export class MicrophoneRecorder {
     this.capturing = Boolean(this.analyser);
   }
 
+  isCapturing(): boolean {
+    return this.capturing;
+  }
+
+  /**
+   * Captures and processes raw audio from the microphone.
+   * This should be called on every animation frame when audio processing is needed.
+   */
+  processAudio(now: number): void {
+    if (!this.capturing || !this.analyser) {
+      return;
+    }
+    this.analyser.getFloatTimeDomainData(this.analyserBuffer);
+    this.lastSampleTime = now;
+    this.updatePitch();
+  }
+
   captureSample(
     now: number,
     playbackStart: number,
     playbackDuration: number,
     latencySec = 0,
   ) {
-    if (!this.capturing || !this.analyser || playbackDuration <= 0) {
-      return;
-    }
+    this.processAudio(now);
 
     const adjustedNow = now - latencySec;
     const progress = (adjustedNow - playbackStart) / playbackDuration;
     if (progress < 0 || progress > 1) {
       return;
     }
-
-    this.analyser.getFloatTimeDomainData(this.analyserBuffer);
-    this.lastSampleTime = now;
 
     let min = 1;
     let max = -1;
@@ -201,6 +220,65 @@ export class MicrophoneRecorder {
     }
   }
 
+  private updatePitch(): void {
+    if (!this.analyser) {
+      this.pitch = null;
+      return;
+    }
+
+    const buffer = this.analyserBuffer;
+    const bufferSize = buffer.length;
+    const sampleRate = this.context?.sampleRate ?? 44100;
+
+    // 1. Calculate Root Mean Square (RMS) to check for silence
+    let rms = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      rms += buffer[i] * buffer[i];
+    }
+    rms = Math.sqrt(rms / bufferSize);
+
+    if (rms < 0.01) { // Not enough signal
+      this.pitch = null;
+      return;
+    }
+
+    // 2. Autocorrelation
+    const correlations = new Float32Array(bufferSize).fill(0);
+    for (let lag = 0; lag < bufferSize; lag++) {
+      for (let i = 0; i < bufferSize - lag; i++) {
+        correlations[lag] += buffer[i] * buffer[i + lag];
+      }
+    }
+
+    // 3. Find the peak in the correlations
+    let bestLag = -1;
+    let bestCorrelation = 0;
+    // Start search from a lag that corresponds to a reasonable minimum frequency
+    const minSamples = Math.floor(sampleRate / 2000); // Max freq: 2kHz
+    for (let lag = minSamples; lag < bufferSize; lag++) {
+      // Simple peak detection
+      if (correlations[lag] > bestCorrelation) {
+        bestCorrelation = correlations[lag];
+        bestLag = lag;
+      }
+    }
+
+    // 4. Calculate confidence and frequency
+    if (bestLag !== -1) {
+      // A good correlation is > 0.9 of the initial energy (lag 0)
+      const confidence = correlations[bestLag] / correlations[0];
+      if (confidence > 0.9) {
+        this.pitch = {
+          frequency: sampleRate / bestLag,
+          confidence,
+        };
+        return;
+      }
+    }
+
+    this.pitch = null;
+  }
+
   reset(): void {
     this.clearPeaks();
     this.gain = this.autoGainEnabled ? AUTO_GAIN_MIN : this.manualGain;
@@ -215,10 +293,12 @@ export class MicrophoneRecorder {
     this.lastIndex = -1;
     this.detectedPeaks = [];
     this.lastDetectedPeakTime = 0;
+    this.pitch = null;
   }
 
   async stop(): Promise<void> {
     this.capturing = false;
+    this.reset();
 
     this.disconnectNodes();
     this.context = null;
@@ -238,6 +318,10 @@ export class MicrophoneRecorder {
       lastIndex: this.lastIndex,
       gain: this.gain,
     };
+  }
+
+  getPitch(): Pitch | null {
+    return this.pitch;
   }
 
   setAutoGain(enabled: boolean): void {

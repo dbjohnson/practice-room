@@ -191,6 +191,13 @@ body {
   min-width: 160px;
 }
 
+.control--toggle {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  justify-content: flex-start;
+}
+
 .control__label {
   font-size: 0.875rem;
   text-transform: uppercase;
@@ -243,4 +250,14 @@ body {
   width: 20px;
   height: 20px;
   stroke: rgba(255, 255, 255, 0.8);
+}
+
+.tuner__canvas {
+  width: 100%;
+  height: 80px;
+  margin-top: 1rem;
+  border-radius: 16px;
+  background: rgba(8, 15, 27, 0.55);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  transition: opacity 0.3s ease-in-out;
 }
