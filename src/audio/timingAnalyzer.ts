@@ -22,20 +22,35 @@ interface PendingPeak {
 
 export class TimingAnalyzer {
   private static readonly evaluationDelay = 0.15;
-  private static readonly onTimeTolerance = 0.025;
+  public static readonly onTimeTolerance = 0.025;
   private static readonly searchWindow = 0.35;
 
   private beats: BeatTracking[] = [];
   private pendingPeaks: PendingPeak[] = [];
   private cumulativeEvaluations: BeatEvaluation[] = [];
 
-  startCycle(playbackStartTime: number, secondsPerBeat: number, beatCount: number): void {
-    this.beats = Array.from({ length: beatCount }, (_, index) => ({
-      index,
-      expectedTime: playbackStartTime + index * secondsPerBeat,
+  startCycle(
+    playbackStartTime: number,
+    secondsPerBeat: number,
+    beatCount: number,
+    activeSteps?: boolean[],
+  ): void {
+    const stepsPerBeat = activeSteps ? activeSteps.length / beatCount : 1;
+    const secondsPerStep = secondsPerBeat / stepsPerBeat;
+
+    const stepsToEvaluate = activeSteps
+      ? activeSteps
+          .map((isActive, index) => (isActive ? index : -1))
+          .filter(index => index !== -1)
+      : Array.from({ length: beatCount }, (_, i) => i * stepsPerBeat);
+
+    this.beats = stepsToEvaluate.map(stepIndex => ({
+      index: stepIndex,
+      expectedTime: playbackStartTime + stepIndex * secondsPerStep,
     }));
+
     this.pendingPeaks = this.pendingPeaks.filter(
-      (peak) => peak.time >= playbackStartTime - TimingAnalyzer.searchWindow,
+      peak => peak.time >= playbackStartTime - TimingAnalyzer.searchWindow,
     );
   }
 

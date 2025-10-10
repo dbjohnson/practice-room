@@ -121,6 +121,23 @@ function createToggleControl({
   return { element: container, input };
 }
 
+function getActiveSteps(patterns: PatternRow[], totalSteps: number): boolean[] {
+  if (!patterns.length || totalSteps === 0) {
+    return Array.from({ length: totalSteps }, (_, i) => (i * 4) % totalSteps === 0);
+  }
+
+  const activeSteps = new Array(totalSteps).fill(false);
+  for (let i = 0; i < totalSteps; i++) {
+    for (const pattern of patterns) {
+      if (pattern.notes.length > 0 && pattern.notes[i % pattern.notes.length]) {
+        activeSteps[i] = true;
+        break;
+      }
+    }
+  }
+  return activeSteps;
+}
+
 function renderApp(root: HTMLElement): void {
   const page = document.createElement('main');
   page.className = 'app';
@@ -1002,7 +1019,16 @@ function renderApp(root: HTMLElement): void {
   }: MetronomeSchedule): void => {
     stopProgressAnimation();
     microphone.clearPeaks();
-    timingAnalyzer.startCycle(playbackStartTime, secondsPerBeat, playbackBeats);
+
+    const totalSteps = playbackBeats * 4; // Assuming 16th note subdivision
+    const activeSteps = getActiveSteps(patterns, totalSteps);
+
+    timingAnalyzer.startCycle(
+      playbackStartTime,
+      secondsPerBeat,
+      playbackBeats,
+      activeSteps,
+    );
     scheduleInfo = { audioContext, startTime, playbackStartTime, playbackDuration, secondsPerBeat, countInBeats, beatsPerBar, playbackBeats };
     timingWindowStart = playbackStartTime;
     timingWindowDuration = Math.max(secondsPerBeat * playbackBeats, 0.001);
@@ -1415,6 +1441,9 @@ function renderApp(root: HTMLElement): void {
     updateSequencerState();
     loadSamples();
     populateAudioInputDevices();
+
+    presetControl.select.value = 'four-on-the-floor';
+    applyPreset('four-on-the-floor');
   });
 
   sequencerCanvas.addEventListener('click', handleSequencerClick);
