@@ -10,6 +10,7 @@ const MANUAL_GAIN_MAX = 6;
 const SILENCE_RELEASE_FACTOR = 0.95;
 const PEAK_THRESHOLD = 0.1;
 const MIN_PEAK_INTERVAL = 0.05;
+const ATTACK_SLOPE_MIN = 0.015;
 
 export interface WaveformPeaks {
   min: Float32Array;
@@ -140,15 +141,34 @@ export class MicrophoneRecorder {
 
     let peakAmplitude = 0;
     let peakIndex = -1;
-    for (let i = 1; i < bufferLength - 1; i += 1) {
+
+    let attackIndex = -1;
+    for (let i = 1; i < bufferLength; i += 1) {
       const sample = this.analyserBuffer[i];
       const amplitude = Math.abs(sample);
-      if (amplitude > peakAmplitude && amplitude > PEAK_THRESHOLD) {
-        const prev = Math.abs(this.analyserBuffer[i - 1]);
-        const next = Math.abs(this.analyserBuffer[i + 1]);
-        if (amplitude >= prev && amplitude >= next) {
+      if (amplitude >= PEAK_THRESHOLD) {
+        const prevAmplitude = Math.abs(this.analyserBuffer[i - 1]);
+        if (amplitude - prevAmplitude >= ATTACK_SLOPE_MIN) {
+          attackIndex = i;
           peakAmplitude = amplitude;
-          peakIndex = i;
+          break;
+        }
+      }
+    }
+
+    if (attackIndex >= 0) {
+      peakIndex = attackIndex;
+    } else {
+      for (let i = 1; i < bufferLength - 1; i += 1) {
+        const sample = this.analyserBuffer[i];
+        const amplitude = Math.abs(sample);
+        if (amplitude > peakAmplitude && amplitude > PEAK_THRESHOLD) {
+          const prev = Math.abs(this.analyserBuffer[i - 1]);
+          const next = Math.abs(this.analyserBuffer[i + 1]);
+          if (amplitude >= prev && amplitude >= next) {
+            peakAmplitude = amplitude;
+            peakIndex = i;
+          }
         }
       }
     }
