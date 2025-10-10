@@ -1,5 +1,5 @@
 const WAVEFORM_RESOLUTION = 1024;
-const ANALYSER_FFT_SIZE = 2048;
+const ANALYSER_FFT_SIZE = 8192;
 const TARGET_WAVEFORM_PEAK = 0.5;
 const GAIN_SMOOTHING = 0.003;
 const SILENCE_THRESHOLD = 0.02;
@@ -36,7 +36,7 @@ export class MicrophoneRecorder {
   private context: AudioContext | null = null;
   private capturing = false;
 
-  private readonly analyserBuffer = new Float32Array(ANALYSER_FFT_SIZE / 2);
+  private readonly analyserBuffer = new Float32Array(ANALYSER_FFT_SIZE);
   private readonly minPeaks = new Float32Array(WAVEFORM_RESOLUTION);
   private readonly maxPeaks = new Float32Array(WAVEFORM_RESOLUTION);
   private readonly filled = new Uint8Array(WAVEFORM_RESOLUTION);
@@ -50,22 +50,25 @@ export class MicrophoneRecorder {
   private lastDetectedPeakTime = 0;
   private pitch: Pitch | null = null;
 
-  async start(context: AudioContext): Promise<void> {
+  async start(context: AudioContext, deviceId?: string): Promise<void> {
     if (!this.supported) {
       this.capturing = false;
       this.reset();
       return;
     }
 
+    const constraints: MediaStreamConstraints = {
+      audio: {
+        deviceId: deviceId ? { exact: deviceId } : undefined,
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      },
+    };
+
     if (!this.stream) {
       try {
-        this.stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-          },
-        });
+        this.stream = await navigator.mediaDevices.getUserMedia(constraints);
       } catch (error) {
         console.error('Unable to access microphone input', error);
         this.stream = null;
@@ -226,54 +229,67 @@ export class MicrophoneRecorder {
       return;
     }
 
-    const buffer = this.analyserBuffer;
+    const buffer = this.analyserBuffer; // Float32Array of time-domain data
     const bufferSize = buffer.length;
     const sampleRate = this.context?.sampleRate ?? 44100;
 
-    // 1. Calculate Root Mean Square (RMS) to check for silence
+    // YIN Algorithm Implementation
+
+    // 1. RMS for silence detection
     let rms = 0;
     for (let i = 0; i < bufferSize; i++) {
       rms += buffer[i] * buffer[i];
     }
     rms = Math.sqrt(rms / bufferSize);
 
-    if (rms < 0.01) { // Not enough signal
+    if (rms < 0.015) { // Silence threshold
       this.pitch = null;
       return;
     }
 
-    // 2. Autocorrelation
-    const correlations = new Float32Array(bufferSize).fill(0);
-    for (let lag = 0; lag < bufferSize; lag++) {
-      for (let i = 0; i < bufferSize - lag; i++) {
-        correlations[lag] += buffer[i] * buffer[i + lag];
+    // 2. Difference function
+    const difference = new Float32Array(bufferSize / 2);
+    for (let tau = 1; tau < bufferSize / 2; tau++) {
+      let sum = 0;
+      for (let i = 0; i < bufferSize / 2; i++) {
+        const delta = buffer[i] - buffer[i + tau];
+        sum += delta * delta;
+      }
+      difference[tau] = sum;
+    }
+
+    // 3. Cumulative mean normalized difference function
+    difference[0] = 1;
+    let runningSum = 0;
+    for (let tau = 1; tau < bufferSize / 2; tau++) {
+      runningSum += difference[tau];
+      difference[tau] *= tau / runningSum;
+    }
+
+    // 4. Absolute threshold
+    const yinThreshold = 0.15;
+    let period = -1;
+
+    // Find the first dip below the threshold
+    for (let tau = 4; tau < bufferSize / 2; tau++) {
+      if (difference[tau] < yinThreshold) {
+        // Find the minimum in this dip
+        while (tau + 1 < bufferSize / 2 && difference[tau + 1] < difference[tau]) {
+          tau++;
+        }
+        period = tau;
+        break;
       }
     }
 
-    // 3. Find the peak in the correlations
-    let bestLag = -1;
-    let bestCorrelation = 0;
-    // Start search from a lag that corresponds to a reasonable minimum frequency
-    const minSamples = Math.floor(sampleRate / 2000); // Max freq: 2kHz
-    for (let lag = minSamples; lag < bufferSize; lag++) {
-      // Simple peak detection
-      if (correlations[lag] > bestCorrelation) {
-        bestCorrelation = correlations[lag];
-        bestLag = lag;
-      }
-    }
-
-    // 4. Calculate confidence and frequency
-    if (bestLag !== -1) {
-      // A good correlation is > 0.9 of the initial energy (lag 0)
-      const confidence = correlations[bestLag] / correlations[0];
-      if (confidence > 0.9) {
-        this.pitch = {
-          frequency: sampleRate / bestLag,
-          confidence,
-        };
-        return;
-      }
+    // 5. Calculate frequency and confidence
+    if (period !== -1) {
+      const confidence = 1 - difference[period];
+      this.pitch = {
+        frequency: sampleRate / period,
+        confidence,
+      };
+      return;
     }
 
     this.pitch = null;

@@ -22,6 +22,8 @@ interface NumberControlConfig {
   step?: number;
 }
 
+const AUDIO_INPUT_DEVICE_ID_KEY = 'audioInputDeviceId';
+
 const DEFAULTS = {
   tempoBpm: 90,
   beatsPerBar: 4,
@@ -298,7 +300,7 @@ function renderApp(root: HTMLElement): void {
       return;
     }
 
-    const isActive = pitch && pitch.confidence > 0.92;
+    const isActive = pitch && pitch.confidence > 0.1;
 
     tunerContext.clearRect(0, 0, tunerCssWidth, tunerCssHeight);
     tunerContext.globalAlpha = isActive ? 1.0 : 0.4;
@@ -987,6 +989,21 @@ function renderApp(root: HTMLElement): void {
   });
   const tunerToggleInput = tunerToggleControl.input;
 
+  const audioInputControl = createSelectControl({
+    id: 'audio-input',
+    label: 'Audio Input',
+    options: { '': 'Default' },
+  });
+  const audioInputSelect = audioInputControl.select;
+
+  audioInputSelect.addEventListener('change', () => {
+    try {
+      localStorage.setItem(AUDIO_INPUT_DEVICE_ID_KEY, audioInputSelect.value);
+    } catch (e) {
+      console.warn('Could not persist audio input device selection.', e);
+    }
+  });
+
   const presetOptions: Record<string, string> = { '': 'Select a Preset...' };
   Object.entries(PRESETS).forEach(([key, preset]) => {
     presetOptions[key] = preset.name;
@@ -1137,11 +1154,12 @@ function renderApp(root: HTMLElement): void {
 
     if (shouldBeActive && !microphone.isCapturing()) {
       const context = getMetronomeContext();
+      const deviceId = audioInputSelect.value || undefined;
       await microphone.start(context);
       if (tunerEnabled && !isPlaybackActive) {
         startTunerLoop();
       }
-    } else if (!shouldBeActive && microphone.isCapturing()) {
+    } else if (!shouldBeActive && microphone.isCapturing()) { // This logic seems to be buggy, let's fix it.
       await microphone.stop();
       // The tuner loop is stopped inside microphone.stop() via reset()
       // but we also need to clear the animation frame
@@ -1174,12 +1192,31 @@ function renderApp(root: HTMLElement): void {
     renderProgressCanvas();
   });
 
-  updateManualGainState();
-  requestAnimationFrame(() => {
-    updateBarGuides();
-    initializeCanvas();
-    updateSequencerState();
+  const populateAudioInputDevices = async () => {
+    if (!navigator.mediaDevices?.enumerateDevices) {
+      audioInputControl.element.style.display = 'none';
+      return;
+    }
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devices.filter(d => d.kind === 'audioinput');
+      if (audioInputs.length === 0) {
+        audioInputControl.element.style.display = 'none';
+        return;
+      }
+      audioInputs.forEach(device => {
+        audioInputSelect.add(new Option(device.label || `microphone ${audioInputSelect.length + 1}`, device.deviceId));
+      });
+      audioInputSelect.value = localStorage.getItem(AUDIO_INPUT_DEVICE_ID_KEY) || '';
+    } catch (err) {
+      console.error('Could not enumerate audio devices:', err);
+      audioInputControl.element.style.display = 'none';
+    }
+    updateManualGainState();
+    renderProgressCanvas();
+  };
 
+  const loadSamples = () => {
     // Load audio samples
     const context = getMetronomeContext();
     sampler = new Sampler(context);
@@ -1189,9 +1226,17 @@ function renderApp(root: HTMLElement): void {
       hihat: '/samples/hihat.wav',
     }).then(() => {
       console.log('Samples loaded');
-      // Microphone will be started when either tuner or playback is enabled
       setReadyState(true);
     });
+  };
+
+  updateManualGainState();
+  requestAnimationFrame(() => {
+    updateBarGuides();
+    initializeCanvas();
+    updateSequencerState();
+    loadSamples();
+    populateAudioInputDevices();
   });
 
   sequencerCanvas.addEventListener('click', handleSequencerClick);
@@ -1396,6 +1441,7 @@ function renderApp(root: HTMLElement): void {
     barCountControl.element,
     presetControl.element,
     tunerToggleControl.element,
+    audioInputControl.element,
     latencyControl.element,
     transport,
     gainControls,

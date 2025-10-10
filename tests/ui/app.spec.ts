@@ -92,6 +92,8 @@ describe('Tempo Trainer transport controls', () => {
       document.querySelector<HTMLInputElement>('#autoGain');
     const manualGainSlider =
       document.querySelector<HTMLInputElement>('#manualGain');
+    const audioInputSelect =
+      document.querySelector<HTMLSelectElement>('#audio-input');
 
     expect(tempoSelect?.value).toBe('90');
     expect(beatsSelect?.value).toBe('4');
@@ -102,6 +104,7 @@ describe('Tempo Trainer transport controls', () => {
     expect(playPauseButton?.dataset.state).toBe('idle');
     expect(autoGainCheckbox?.checked).toBe(true);
     expect(manualGainSlider?.disabled).toBe(true);
+    expect(audioInputSelect).toBeTruthy();
   });
 
   test('auto gain toggle enables manual gain slider', async () => {
