@@ -143,24 +143,17 @@ export class MicrophoneRecorder {
       Math.max(0, Math.round(progress * (WAVEFORM_RESOLUTION - 1))),
     );
 
-    const peak = Math.max(Math.abs(min), Math.abs(max));
     let desiredGain: number;
     if (this.autoGainEnabled) {
-      desiredGain =
-        peak >= SILENCE_THRESHOLD
-          ? Math.min(
-              AUTO_GAIN_MAX,
-              Math.max(AUTO_GAIN_MIN, TARGET_WAVEFORM_PEAK / peak),
-            )
-          : Math.max(AUTO_GAIN_MIN, this.gain * SILENCE_RELEASE_FACTOR);
+      const peak = Math.max(Math.abs(min), Math.abs(max));
+      const currentGain = this.gain;
+      const targetGain = peak > SILENCE_THRESHOLD ? TARGET_WAVEFORM_PEAK / peak : currentGain * SILENCE_RELEASE_FACTOR;
+      desiredGain = Math.max(AUTO_GAIN_MIN, Math.min(AUTO_GAIN_MAX, targetGain));
     } else {
       desiredGain = this.manualGain;
     }
 
     this.gain += (desiredGain - this.gain) * GAIN_SMOOTHING;
-
-    const scaledMin = Math.max(-1, Math.min(1, min * this.gain));
-    const scaledMax = Math.max(-1, Math.min(1, max * this.gain));
 
     const sampleRate = this.context?.sampleRate ?? 44100;
     const bufferLength = this.analyserBuffer.length;
@@ -168,8 +161,6 @@ export class MicrophoneRecorder {
     const bufferStartTime = now - bufferDuration;
 
     let peakAmplitude = 0;
-    let peakIndex = -1;
-
     let attackIndex = -1;
     for (let i = 1; i < bufferLength; i += 1) {
       const sample = this.analyserBuffer[i];
@@ -183,6 +174,8 @@ export class MicrophoneRecorder {
         }
       }
     }
+
+    let peakIndex = -1;
 
     if (attackIndex >= 0) {
       peakIndex = attackIndex;
@@ -210,11 +203,11 @@ export class MicrophoneRecorder {
     }
 
     if (this.filled[index]) {
-      this.minPeaks[index] = Math.min(this.minPeaks[index], scaledMin);
-      this.maxPeaks[index] = Math.max(this.maxPeaks[index], scaledMax);
+      this.minPeaks[index] = Math.min(this.minPeaks[index], min);
+      this.maxPeaks[index] = Math.max(this.maxPeaks[index], max);
     } else {
-      this.minPeaks[index] = scaledMin;
-      this.maxPeaks[index] = scaledMax;
+      this.minPeaks[index] = min;
+      this.maxPeaks[index] = max;
       this.filled[index] = 1;
     }
 

@@ -300,7 +300,7 @@ function renderApp(root: HTMLElement): void {
       return;
     }
 
-    const isActive = pitch && pitch.confidence > 0.1;
+    const isActive = pitch && pitch.confidence > 0.7;
 
     tunerContext.clearRect(0, 0, tunerCssWidth, tunerCssHeight);
     tunerContext.globalAlpha = isActive ? 1.0 : 0.4;
