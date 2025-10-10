@@ -30,8 +30,6 @@ export interface MetronomeOptions {
 const CLICK_ATTACK = 0.004;
 const CLICK_DECAY = 0.08;
 const CLICK_DURATION = CLICK_ATTACK + CLICK_DECAY;
-const ACCENT_FREQUENCY = 1100;
-const REGULAR_FREQUENCY = 780;
 const ACCENT_GAIN = 1.0;
 const REGULAR_GAIN = 0.7;
 const START_DELAY = 0.1;
@@ -41,6 +39,8 @@ type ScheduledClick = {
   patternGain: GainNode;
   startTime: number;
   stopTime: number;
+  rowIndex: number;
+  noteIndex: number;
 };
 
 export function getScheduledClicks(): ScheduledClick[] {
@@ -69,6 +69,7 @@ function scheduleClick(
   when: number,
   isAccent: boolean,
   patternRow: PatternRow,
+  rowIndex: number,
   noteIndex: number,
   scheduled: ScheduledClick[],
 ): void {
@@ -84,14 +85,13 @@ function scheduleClick(
   sampleNode.connect(patternGain);
   patternGain.connect(ctx.destination);
 
-  // The source node will stop automatically when the buffer is finished.
-  const stopTime = when + (CLICK_DURATION);
-
   scheduled.push({
     source: sampleNode,
     patternGain, // Store the controllable gain node
     startTime: when,
     stopTime: when + CLICK_DURATION,
+    rowIndex,
+    noteIndex,
   });
 }
 
@@ -127,11 +127,6 @@ export async function startMetronome({
   const secondsPerBeat = 60 / tempo;
   const countInBeats = beatsPerBar;
   const playbackBeats = beatsPerBar * barCount;
-  const totalBeats = countInBeats + playbackBeats;
-  const playbackDuration = playbackBeats * secondsPerBeat;
-
-  const startTime = ctx.currentTime + START_DELAY;
-  const playbackStartTime = startTime + countInBeats * secondsPerBeat;
 
   let stopped = false;
   let loopTimer: ReturnType<typeof setTimeout> | null = null;
@@ -221,20 +216,29 @@ export async function startMetronome({
       const countInPattern: PatternRow = {
         subdivision: 1, notes: [true], sample: 'hihat'
       };
-      scheduleClick(ctx, sampler, beatTime, isAccent, countInPattern, 0, scheduledClicks);
+      scheduleClick(ctx, sampler, beatTime, isAccent, countInPattern, -1, 0, scheduledClicks);
     }
 
     // Schedule playback beats based on the pattern
-    for (const patternRow of patterns) {
+    patterns.forEach((patternRow, rowIndex) => {
       const secondsPerNote = secondsPerBeat / patternRow.subdivision;
       for (let i = 0; i < playbackBeats * patternRow.subdivision; i++) {
         const beatTime = playbackStartTime + i * secondsPerNote;
         const isDownbeat = i % patternRow.subdivision === 0;
         const beatInBar = (i / patternRow.subdivision) % beatsPerBar;
         const isAccent = isDownbeat && beatInBar === 0;
-        scheduleClick(ctx, sampler, beatTime, isAccent, patternRow, i, scheduledClicks);
+        scheduleClick(
+          ctx,
+          sampler,
+          beatTime,
+          isAccent,
+          patternRow,
+          rowIndex,
+          i,
+          scheduledClicks,
+        );
       }
-    }
+    });
 
     const nextLoopStart =
       playbackStartTime + playbackDuration;

@@ -8,10 +8,10 @@ import {
 } from './audio/metronome';
 import type { MetronomeSchedule, Pitch } from './audio/metronome';
 import { MicrophoneRecorder } from './audio/microphoneRecorder';
-import { Sampler } from './audio/sampler';
-import { PRESETS } from './presets';
-import { TimingAnalyzer } from './audio/timingAnalyzer';
 import { frequencyToNote } from './audio/pitch';
+import { Sampler } from './audio/sampler';
+import { TimingAnalyzer } from './audio/timingAnalyzer';
+import { PRESETS } from './presets';
 
 interface NumberControlConfig {
   id: string;
@@ -265,7 +265,7 @@ function renderApp(root: HTMLElement): void {
       deviationContext.lineWidth = 2;
       deviationContext.beginPath();
       let started = false;
-      points.forEach((point, index) => {
+      points.forEach((point) => {
         const normalizedX = point.age / maxAge;
         const x = pad + normalizedX * drawWidth;
         const rawValue = accessor(point);
@@ -599,18 +599,38 @@ function renderApp(root: HTMLElement): void {
       return;
     }
 
+    const row = patterns[rowIndex];
+    if (!row) {
+      return;
+    }
+
     const scheduledClicks = getScheduledClicks();
-    const { playbackStartTime, secondsPerBeat, beatsPerBar } = scheduleInfo;
-    const { subdivision } = patterns[rowIndex];
-    const secondsPerNote = secondsPerBeat / subdivision;
-    const expectedTime = playbackStartTime + noteIndex * secondsPerNote;
+    const { audioContext } = scheduleInfo;
+    const now = audioContext.currentTime;
+    const normalizedIndex =
+      row.notes.length > 0 ? noteIndex % row.notes.length : noteIndex;
 
-    // Find the click corresponding to the toggled beat
-    const click = scheduledClicks.find(
-      (c) => Math.abs(c.startTime - expectedTime) < 0.001,
-    );
+    for (const click of scheduledClicks) {
+      if (click.rowIndex !== rowIndex) {
+        continue;
+      }
 
-    click?.patternGain.gain.setValueAtTime(isEnabled ? 1.0 : 0.0, 0);
+      if (row.notes.length > 0 && (click.noteIndex % row.notes.length) !== normalizedIndex) {
+        continue;
+      }
+
+      if (click.stopTime <= now) {
+        continue;
+      }
+
+      const target = isEnabled ? 1.0 : 0.0;
+      try {
+        click.patternGain.gain.cancelScheduledValues(now);
+        click.patternGain.gain.setValueAtTime(target, now);
+      } catch {
+        // Ignore automation errors from released nodes
+      }
+    }
   };
 
   let tunerEnabled = false;
@@ -1236,7 +1256,6 @@ function renderApp(root: HTMLElement): void {
   ): number => {
     const parsed = Number.parseInt(input.value, 10);
     if (Number.isNaN(parsed) || parsed < 1) {
-      const min = Number(input.min) || 1;
       if (commit) {
         input.value = String(fallback);
       }
@@ -1276,7 +1295,6 @@ function renderApp(root: HTMLElement): void {
 
   const updateSequencerState = () => {
     const oldPatterns = patterns;
-    const oldTotalBeats = totalBeatsPerPattern;
 
     const beatsPerBar = readPositiveInteger(beatsPerBarInput, DEFAULTS.beatsPerBar);
     const barCount = readPositiveInteger(barCountInput, DEFAULTS.barCount);
@@ -1308,7 +1326,6 @@ function renderApp(root: HTMLElement): void {
 
     if (shouldBeActive && !microphone.isCapturing()) {
       const context = getMetronomeContext();
-      const deviceId = audioInputSelect.value || undefined;
       await microphone.start(context);
       if (tunerEnabled && !isPlaybackActive) {
         startTunerLoop();
