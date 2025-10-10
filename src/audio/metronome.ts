@@ -17,11 +17,13 @@ export interface MetronomeOptions {
   onSchedule?: (schedule: MetronomeSchedule) => void;
 }
 
-const CLICK_DURATION = 0.08;
-const ACCENT_FREQUENCY = 1200;
-const REGULAR_FREQUENCY = 900;
-const ACCENT_GAIN = 0.5;
-const REGULAR_GAIN = 0.35;
+const CLICK_ATTACK = 0.004;
+const CLICK_DECAY = 0.08;
+const CLICK_DURATION = CLICK_ATTACK + CLICK_DECAY;
+const ACCENT_FREQUENCY = 1100;
+const REGULAR_FREQUENCY = 780;
+const ACCENT_GAIN = 0.32;
+const REGULAR_GAIN = 0.22;
 const START_DELAY = 0.1;
 
 type ScheduledClick = {
@@ -55,12 +57,13 @@ function scheduleClick(
   const oscillator = ctx.createOscillator();
   const gain = ctx.createGain();
 
-  oscillator.type = 'square';
+  oscillator.type = 'triangle';
   oscillator.frequency.value = isAccent ? ACCENT_FREQUENCY : REGULAR_FREQUENCY;
 
   const gainLevel = isAccent ? ACCENT_GAIN : REGULAR_GAIN;
-  gain.gain.setValueAtTime(gainLevel, when);
-  gain.gain.exponentialRampToValueAtTime(0.001, when + CLICK_DURATION);
+  gain.gain.setValueAtTime(0.0001, when);
+  gain.gain.linearRampToValueAtTime(gainLevel, when + CLICK_ATTACK);
+  gain.gain.exponentialRampToValueAtTime(0.0001, when + CLICK_DURATION);
 
   oscillator.connect(gain);
   gain.connect(ctx.destination);

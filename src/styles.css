@@ -130,11 +130,11 @@ body {
 
 
 .transport {
-  flex: 1 0 100%;
   display: flex;
-  align-items: center;
+  flex: 0 0 auto;
+  align-items: flex-end;
   gap: 1rem;
-  margin-top: 0.25rem;
+  margin-top: 0;
 }
 
 .transport__button {

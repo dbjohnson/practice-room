@@ -8,11 +8,12 @@ import type { MetronomeSchedule } from './audio/metronome';
 import { MicrophoneRecorder } from './audio/microphoneRecorder';
 import { TimingAnalyzer } from './audio/timingAnalyzer';
 
-interface TempoControlConfig {
+interface NumberControlConfig {
   id: string;
   label: string;
-  options: Array<{ label: string; value: number }>;
   defaultValue: number;
+  min?: number;
+  step?: number;
 }
 
 const DEFAULTS = {
@@ -23,45 +24,44 @@ const DEFAULTS = {
 
 const formatGain = (gain: number): string => gain.toFixed(1);
 
-function createSelect({
+function createNumberControl({
   id,
   label,
-  options,
   defaultValue,
-}: TempoControlConfig): HTMLLabelElement {
-  const selectLabel = document.createElement('label');
-  selectLabel.setAttribute('for', id);
-  selectLabel.className = 'control';
+  min = 1,
+  step = 1,
+}: NumberControlConfig): { element: HTMLLabelElement; input: HTMLInputElement } {
+  const container = document.createElement('label');
+  container.setAttribute('for', id);
+  container.className = 'control';
 
   const title = document.createElement('span');
   title.textContent = label;
   title.className = 'control__label';
 
-  const select = document.createElement('select');
-  select.id = id;
-  select.name = id;
-  select.className = 'control__input';
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.id = id;
+  input.name = id;
+  input.min = String(Math.max(1, min));
+  input.step = String(Math.max(1, step));
+  input.inputMode = 'numeric';
+  input.pattern = '[0-9]*';
+  input.value = String(Math.max(1, Math.floor(defaultValue)));
+  input.className = 'control__input';
+  input.setAttribute('autocomplete', 'off');
 
-  for (const option of options) {
-    const optionElement = document.createElement('option');
-    optionElement.value = String(option.value);
-    optionElement.textContent = option.label;
-    if (option.value === defaultValue) {
-      optionElement.selected = true;
-    }
-    select.append(optionElement);
-  }
+  container.append(title, input);
 
-  selectLabel.append(title, select);
-  return selectLabel;
+  return {
+    element: container,
+    input,
+  };
 }
 
 function renderApp(root: HTMLElement): void {
   const page = document.createElement('main');
   page.className = 'app';
-
-  const heading = document.createElement('h1');
-  heading.textContent = 'Tempo Trainer';
 
   const form = document.createElement('form');
   form.className = 'controls';
@@ -588,45 +588,28 @@ progressCanvas.setAttribute('aria-hidden', 'true');
   setCountdown(null);
   window.addEventListener('resize', resizeCanvas, { passive: true });
 
-  const tempoControl = createSelect({
+  const tempoControl = createNumberControl({
     id: 'tempo',
     label: 'Tempo (BPM)',
     defaultValue: DEFAULTS.tempoBpm,
-    options: [
-      { label: '60', value: 60 },
-      { label: '75', value: 75 },
-      { label: '90', value: 90 },
-      { label: '105', value: 105 },
-      { label: '120', value: 120 },
-    ],
+    min: 1,
+    step: 1,
   });
 
-  const beatsPerBarControl = createSelect({
+  const beatsPerBarControl = createNumberControl({
     id: 'beatsPerBar',
     label: 'Beats per bar',
     defaultValue: DEFAULTS.beatsPerBar,
-    options: [
-      { label: '2', value: 2 },
-      { label: '3', value: 3 },
-      { label: '4', value: 4 },
-      { label: '5', value: 5 },
-      { label: '6', value: 6 },
-    ],
+    min: 1,
+    step: 1,
   });
 
-  const barCountControl = createSelect({
+  const barCountControl = createNumberControl({
     id: 'barCount',
     label: 'Bars',
     defaultValue: DEFAULTS.barCount,
-    options: [
-      { label: '1', value: 1 },
-      { label: '2', value: 2 },
-      { label: '3', value: 3 },
-      { label: '4', value: 4 },
-      { label: '5', value: 5 },
-      { label: '6', value: 6 },
-      { label: '8', value: 8 },
-    ],
+    min: 1,
+    step: 1,
   });
 
   const gainControls = document.createElement('div');
@@ -678,26 +661,53 @@ progressCanvas.setAttribute('aria-hidden', 'true');
 
   gainControls.append(autoGainLabel, manualGainLabel);
 
-  const tempoSelect = tempoControl.querySelector<HTMLSelectElement>('select');
-  const beatsPerBarSelect =
-    beatsPerBarControl.querySelector<HTMLSelectElement>('select');
-  const barCountSelect =
-    barCountControl.querySelector<HTMLSelectElement>('select');
+  const tempoInput = tempoControl.input;
+  const beatsPerBarInput = beatsPerBarControl.input;
+  const barCountInput = barCountControl.input;
 
-  if (!tempoSelect || !beatsPerBarSelect || !barCountSelect) {
-    throw new Error('Missing select controls');
-  }
+  const readPositiveInteger = (
+    input: HTMLInputElement,
+    fallback: number,
+    commit = false,
+  ): number => {
+    const parsed = Number.parseInt(input.value, 10);
+    if (Number.isNaN(parsed) || parsed < 1) {
+      if (commit) {
+        input.value = String(fallback);
+      }
+      return fallback;
+    }
+    const normalized = Math.floor(parsed);
+    if (commit) {
+      input.value = String(normalized);
+    }
+    return normalized;
+  };
 
   const updateBarGuides = () => {
-    const beatsPerBar = Number(beatsPerBarSelect.value);
-    const barCount = Number(barCountSelect.value);
-    progressBeatsPerBar =
-      beatsPerBar > 0 ? beatsPerBar : DEFAULTS.beatsPerBar;
-    progressBarCount = barCount > 0 ? barCount : DEFAULTS.barCount;
+    const beatsPerBar = readPositiveInteger(
+      beatsPerBarInput,
+      DEFAULTS.beatsPerBar,
+    );
+    const barCount = readPositiveInteger(barCountInput, DEFAULTS.barCount);
+    progressBeatsPerBar = beatsPerBar;
+    progressBarCount = barCount;
     renderProgressCanvas();
   };
-  beatsPerBarSelect.addEventListener('change', updateBarGuides);
-  barCountSelect.addEventListener('change', updateBarGuides);
+
+  beatsPerBarInput.addEventListener('input', updateBarGuides);
+  barCountInput.addEventListener('input', updateBarGuides);
+  beatsPerBarInput.addEventListener('blur', () => {
+    readPositiveInteger(beatsPerBarInput, DEFAULTS.beatsPerBar, true);
+    updateBarGuides();
+  });
+  barCountInput.addEventListener('blur', () => {
+    readPositiveInteger(barCountInput, DEFAULTS.barCount, true);
+    updateBarGuides();
+  });
+  tempoInput.addEventListener('blur', () => {
+    readPositiveInteger(tempoInput, DEFAULTS.tempoBpm, true);
+  });
 
   const updateManualGainState = () => {
     const autoEnabled = autoGainCheckbox.checked;
@@ -810,9 +820,17 @@ progressCanvas.setAttribute('aria-hidden', 'true');
       console.error('Unable to prepare microphone input', error);
     }
 
-    const tempo = Number(tempoSelect.value);
-    const beatsPerBar = Number(beatsPerBarSelect.value);
-    const barCount = Number(barCountSelect.value);
+    const tempo = readPositiveInteger(tempoInput, DEFAULTS.tempoBpm, true);
+    const beatsPerBar = readPositiveInteger(
+      beatsPerBarInput,
+      DEFAULTS.beatsPerBar,
+      true,
+    );
+    const barCount = readPositiveInteger(
+      barCountInput,
+      DEFAULTS.barCount,
+      true,
+    );
 
     try {
       playbackPromise = startMetronome({
@@ -905,13 +923,13 @@ progressCanvas.setAttribute('aria-hidden', 'true');
 
   gainControls.style.display = 'none';
   form.append(
-    tempoControl,
-    beatsPerBarControl,
-    barCountControl,
-    gainControls,
+    tempoControl.element,
+    beatsPerBarControl.element,
+    barCountControl.element,
     transport,
+    gainControls,
   );
-  page.append(heading, form, progressSection, deviationCanvas);
+  page.append(form, progressSection, deviationCanvas);
 
   root.replaceChildren(page);
 }
