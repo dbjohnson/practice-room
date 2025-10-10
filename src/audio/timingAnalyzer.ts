@@ -45,6 +45,15 @@ export class TimingAnalyzer {
     this.cumulativeEvaluations = [];
   }
 
+  adjustAllDeltas(deltaAdjustment: number): void {
+    this.beats.forEach(beat => {
+      if (beat.result?.delta !== undefined) {
+        beat.result.delta += deltaAdjustment;
+      }
+    });
+    // No need to adjust cumulative, as they are references to the same objects
+  }
+
   addPeaks(peaks: PendingPeak[]): void {
     if (peaks.length === 0) {
       return;

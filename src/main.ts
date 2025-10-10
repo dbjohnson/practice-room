@@ -548,14 +548,20 @@ function renderApp(root: HTMLElement): void {
 
   const calibrateLatency = () => {
     const evaluations = timingAnalyzer.getCumulativeEvaluations();
-    const validHits = evaluations.filter(e => e.delta !== undefined && e.delta !== null);
+    const validHits = evaluations.filter(
+      e => e.delta !== undefined && e.delta !== null,
+    );
 
     if (validHits.length < 5) {
-      console.warn('Not enough data to calibrate latency. Please play a few more notes.');
+      console.warn(
+        'Not enough data to calibrate latency. Please play a few more notes.',
+      );
       return;
     }
 
-    const averageDelta = validHits.reduce((sum, hit) => sum + (hit.delta ?? 0), 0) / validHits.length;
+    const averageDelta =
+      validHits.reduce((sum, hit) => sum + (hit.delta ?? 0), 0) /
+      validHits.length;
 
     const currentLatencySec = readPositiveInteger(latencyInput, 80, false) / 1000;
     const newLatencySec = currentLatencySec + averageDelta;
@@ -566,11 +572,18 @@ function renderApp(root: HTMLElement): void {
 
     latencyInput.value = String(Math.max(minLatency, Math.min(maxLatency, newLatency)));
 
-    // Reset history to show the new calibration
-    beatDeviations.length = 0;
-    evaluatedCount = 0;
-    timingAnalyzer.reset();
-    microphone.clearPeaks();
+    // Adjust history to reflect the new calibration
+    const beatDuration = currentSecondsPerBeat || 1;
+    const deltaAdjustment = -averageDelta;
+    const normalizedAdjustment = deltaAdjustment / beatDuration;
+
+    for (let i = 0; i < beatDeviations.length; i++) {
+      if (beatDeviations[i] !== null) {
+        beatDeviations[i] += normalizedAdjustment;
+      }
+    }
+    timingAnalyzer.adjustAllDeltas(deltaAdjustment);
+
     renderDeviationCanvas();
     renderProgressCanvas();
   };
@@ -1148,8 +1161,8 @@ function renderApp(root: HTMLElement): void {
     renderSequencerCanvas();
   };
 
-  const updateMicrophoneState = async () => {
-    const isPlaybackActive = !!playbackPromise;
+  const updateMicrophoneState = async (isPlaybackStarting = false) => {
+    const isPlaybackActive = isPlaybackStarting || !!playbackPromise;
     const shouldBeActive = isPlaybackActive || tunerEnabled;
 
     if (shouldBeActive && !microphone.isCapturing()) {
@@ -1324,8 +1337,6 @@ function renderApp(root: HTMLElement): void {
       shouldResetDeviationHistory = false;
     }
 
-    timingAnalyzer.reset(); // Keep this to clear timing analysis
-    void updateMicrophoneState(); // This will start the microphone if needed
 
     const tempo = readPositiveInteger(tempoInput, DEFAULTS.tempoBpm, true);
     const beatsPerBar = readPositiveInteger(
@@ -1340,6 +1351,7 @@ function renderApp(root: HTMLElement): void {
     );
 
     try {
+      await updateMicrophoneState(true); // Start mic before scheduling
       playbackPromise = startMetronome({
         sampler,
         tempo,
@@ -1348,6 +1360,7 @@ function renderApp(root: HTMLElement): void {
         patterns,
         onSchedule: startProgressAnimation,
       });
+      timingAnalyzer.reset(); // Reset after mic is started and before playback
     } catch (error) {
       console.error('Unable to start metronome', error);
       setTransportState('idle');
