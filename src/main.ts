@@ -1320,6 +1320,13 @@ function renderApp(root: HTMLElement): void {
 
     if (shouldBeActive && !microphone.isCapturing()) {
       const context = getMetronomeContext();
+      if (context.state === 'suspended') {
+        try {
+          await context.resume();
+        } catch (error) {
+          console.error('Unable to resume audio context', error);
+        }
+      }
       await microphone.start(context);
       if (tunerEnabled && !isPlaybackActive) {
         startTunerLoop();
