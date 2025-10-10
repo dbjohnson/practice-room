@@ -9,6 +9,7 @@ import {
 import type { MetronomeSchedule } from './audio/metronome';
 import { MicrophoneRecorder } from './audio/microphoneRecorder';
 import { Sampler } from './audio/sampler';
+import { PRESETS } from './presets';
 import { TimingAnalyzer } from './audio/timingAnalyzer';
 
 interface NumberControlConfig {
@@ -60,6 +61,31 @@ function createNumberControl({
     element: container,
     input,
   };
+}
+
+function createSelectControl({ id, label, options }: { id: string; label: string; options: Record<string, string> }) {
+  const container = document.createElement('label');
+  container.setAttribute('for', id);
+  container.className = 'control';
+
+  const title = document.createElement('span');
+  title.textContent = label;
+  title.className = 'control__label';
+
+  const select = document.createElement('select');
+  select.id = id;
+  select.name = id;
+  select.className = 'control__input';
+
+  Object.entries(options).forEach(([value, text]) => {
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = text;
+    select.add(option);
+  });
+
+  container.append(title, select);
+  return { element: container, select };
 }
 
 function renderApp(root: HTMLElement): void {
@@ -362,6 +388,28 @@ function renderApp(root: HTMLElement): void {
     );
 
     click?.patternGain.gain.setValueAtTime(isEnabled ? 1.0 : 0.0, 0);
+  };
+
+  const applyPreset = (presetKey: string) => {
+    if (!presetKey || !PRESETS[presetKey]) {
+      return;
+    }
+
+    const preset = PRESETS[presetKey];
+    patterns.forEach((patternRow, rowIndex) => {
+      const presetPattern = preset.patterns[rowIndex] || [];
+      for (let i = 0; i < patternRow.notes.length; i++) {
+        const newValue = presetPattern[i % presetPattern.length] ?? false;
+        if (patternRow.notes[i] !== newValue) {
+          patternRow.notes[i] = newValue;
+          // Instantly update the metronome if it's playing
+          if (scheduleInfo) {
+            updateMetronomePattern(rowIndex, i, newValue);
+          }
+        }
+      }
+    });
+    renderSequencerCanvas();
   };
 
   const calibrateLatency = () => {
@@ -692,15 +740,14 @@ function renderApp(root: HTMLElement): void {
     const renderProgress = () => {
       const now = audioContext.currentTime;
       let shouldContinue = true;
-      microphone.captureSample(now, playbackStartTime, playbackDuration);
 
-    const latencyMs = readPositiveInteger(latencyInput, 80);
-    const latencySec = latencyMs / 1000;
+      const latencyMs = readPositiveInteger(latencyInput, 80);
+      const latencySec = latencyMs / 1000;
+      microphone.captureSample(now, playbackStartTime, playbackDuration, latencySec);
 
       const freshPeaks = microphone.consumePeaks();
       if (freshPeaks.length > 0) {
-      const adjustedPeaks = freshPeaks.map(p => ({ ...p, time: p.time - latencySec }));
-      timingAnalyzer.addPeaks(adjustedPeaks);
+        timingAnalyzer.addPeaks(freshPeaks);
       }
       const beatEvaluations = timingAnalyzer.evaluate(now);
       if (beatEvaluations.length > 0) {
@@ -782,6 +829,18 @@ function renderApp(root: HTMLElement): void {
     max: 200,
     step: 1,
   });
+
+  const presetOptions: Record<string, string> = { '': 'Select a Preset...' };
+  Object.entries(PRESETS).forEach(([key, preset]) => {
+    presetOptions[key] = preset.name;
+  });
+
+  const presetControl = createSelectControl({
+    id: 'presets',
+    label: 'Presets',
+    options: presetOptions,
+  });
+  presetControl.select.addEventListener('change', () => applyPreset(presetControl.select.value));
 
   const gainControls = document.createElement('div');
   gainControls.className = 'gain-controls';
@@ -1160,6 +1219,7 @@ function renderApp(root: HTMLElement): void {
     tempoControl.element,
     beatsPerBarControl.element,
     barCountControl.element,
+    presetControl.element,
     latencyControl.element,
     transport,
     gainControls,

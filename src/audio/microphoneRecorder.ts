@@ -86,12 +86,18 @@ export class MicrophoneRecorder {
     this.capturing = Boolean(this.analyser);
   }
 
-  captureSample(now: number, playbackStart: number, playbackDuration: number) {
+  captureSample(
+    now: number,
+    playbackStart: number,
+    playbackDuration: number,
+    latencySec = 0,
+  ) {
     if (!this.capturing || !this.analyser || playbackDuration <= 0) {
       return;
     }
 
-    const progress = (now - playbackStart) / playbackDuration;
+    const adjustedNow = now - latencySec;
+    const progress = (adjustedNow - playbackStart) / playbackDuration;
     if (progress < 0 || progress > 1) {
       return;
     }
@@ -174,7 +180,7 @@ export class MicrophoneRecorder {
     }
 
     if (peakIndex >= 0) {
-      const peakTime = bufferStartTime + (peakIndex / bufferLength) * bufferDuration;
+      const peakTime = adjustedNow - bufferDuration + (peakIndex / bufferLength) * bufferDuration;
       if (peakTime - this.lastDetectedPeakTime >= MIN_PEAK_INTERVAL) {
         this.lastDetectedPeakTime = peakTime;
         this.detectedPeaks.push({ time: peakTime, amplitude: peakAmplitude });
