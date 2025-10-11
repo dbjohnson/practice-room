@@ -23,7 +23,7 @@ interface PendingPeak {
 export class TimingAnalyzer {
   private static readonly evaluationDelay = 0.15;
   public static readonly onTimeTolerance = 0.025;
-  private static readonly searchWindow = 0.35;
+  private searchWindow = 0.1;
 
   private beats: BeatTracking[] = [];
   private pendingPeaks: PendingPeak[] = [];
@@ -35,8 +35,9 @@ export class TimingAnalyzer {
     beatCount: number,
     activeSteps?: boolean[],
   ): void {
-    const stepsPerBeat = activeSteps ? activeSteps.length / beatCount : 1;
+    const stepsPerBeat = activeSteps ? activeSteps.length / beatCount : 4;
     const secondsPerStep = secondsPerBeat / stepsPerBeat;
+    this.searchWindow = secondsPerStep / 2;
 
     const stepsToEvaluate = activeSteps
       ? activeSteps
@@ -50,7 +51,7 @@ export class TimingAnalyzer {
     }));
 
     this.pendingPeaks = this.pendingPeaks.filter(
-      peak => peak.time >= playbackStartTime - TimingAnalyzer.searchWindow,
+      peak => peak.time >= playbackStartTime - this.searchWindow,
     );
   }
 
@@ -79,7 +80,7 @@ export class TimingAnalyzer {
   evaluate(now: number): BeatEvaluation[] {
     const evaluations: BeatEvaluation[] = [];
     const delay = TimingAnalyzer.evaluationDelay;
-    const window = TimingAnalyzer.searchWindow;
+    const window = this.searchWindow;
     const tolerance = TimingAnalyzer.onTimeTolerance;
 
     for (const beat of this.beats) {
@@ -133,7 +134,7 @@ export class TimingAnalyzer {
       (beat) => !beat.result || beat.result.status === 'miss',
     );
     const cutoff =
-      (earliestPendingBeat?.expectedTime ?? now) - TimingAnalyzer.searchWindow;
+      (earliestPendingBeat?.expectedTime ?? now) - this.searchWindow;
     this.pendingPeaks = this.pendingPeaks.filter((peak) => peak.time >= cutoff);
 
     return evaluations;
