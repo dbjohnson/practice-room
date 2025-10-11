@@ -371,12 +371,12 @@ function renderApp(root: HTMLElement): void {
 
     const { noteName, cents } = activePitch
       ? frequencyToNote(activePitch.frequency)
-      : { noteName: '--', cents: 0 };
+      : { noteName: '', cents: 0 };
 
     const centsRounded = activePitch ? Math.round(cents) : 0;
     const centsDisplay = activePitch
       ? `${centsRounded > 0 ? '+' : ''}${centsRounded}`
-      : '--';
+      : '';
 
     const centsRange = 50;
     const barStep = 2;
