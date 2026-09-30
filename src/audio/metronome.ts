@@ -35,7 +35,7 @@ const REGULAR_GAIN = 0.7;
 const START_DELAY = 0.1;
 
 type ScheduledClick = {
-  source: AudioNode;
+  source: AudioBufferSourceNode;
   patternGain: GainNode;
   startTime: number;
   stopTime: number;
@@ -78,15 +78,15 @@ function scheduleClick(
   const sampleNode = sampler.play(patternRow.sample, when, noteGain * (patternRow.gain ?? 1.0));
   if (!sampleNode) return;
 
-  // Set initial gain based on the pattern.
-  // It's 1 if the beat is active, and 0 if it's muted.
+  // `sampleNode.gain` carries the note + sample gain; `patternGain` mutes
+  // inactive steps (1 if active, 0 if muted).
   patternGain.gain.value = patternRow.notes[noteIndex] ? 1.0 : 0.0;
 
-  sampleNode.connect(patternGain);
+  sampleNode.gain.connect(patternGain);
   patternGain.connect(ctx.destination);
 
   scheduled.push({
-    source: sampleNode,
+    source: sampleNode.source,
     patternGain, // Store the controllable gain node
     startTime: when,
     stopTime: when + CLICK_DURATION,

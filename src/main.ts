@@ -6,7 +6,8 @@ import {
   stopMetronome,
   PatternRow,
 } from './audio/metronome';
-import type { MetronomeSchedule, Pitch } from './audio/metronome';
+import type { MetronomeSchedule } from './audio/metronome';
+import type { Pitch } from './audio/microphoneRecorder';
 import { MicrophoneRecorder } from './audio/microphoneRecorder';
 import { frequencyToNote } from './audio/pitch';
 import { Sampler } from './audio/sampler';
@@ -728,8 +729,9 @@ function renderApp(root: HTMLElement): void {
     const normalizedAdjustment = deltaAdjustment / beatDuration;
 
     for (let i = 0; i < beatDeviations.length; i++) {
-      if (beatDeviations[i] !== null) {
-        beatDeviations[i] += normalizedAdjustment;
+      const deviation = beatDeviations[i];
+      if (deviation !== null) {
+        beatDeviations[i] = deviation + normalizedAdjustment;
       }
     }
     timingAnalyzer.adjustAllDeltas(deltaAdjustment);

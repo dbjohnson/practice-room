@@ -13,8 +13,30 @@ vi.mock('../../src/audio/metronome', () => ({
 }));
 
 async function flushMicrotasks(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
+  // The play/stop path awaits `updateMicrophoneState` -> `microphone.start`
+  // before resolving `startMetronome`, so a couple of microtask ticks are not
+  // enough. Flush a handful of turns plus a macrotask to settle the chain.
+  for (let i = 0; i < 10; i += 1) {
+    await Promise.resolve();
+  }
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+// `renderApp` schedules sample loading inside a `requestAnimationFrame`, and
+// the play/pause button stays disabled until `Sampler.load` resolves. Wait for
+// the button to become enabled before driving transport interactions.
+async function waitForTransportReady(): Promise<void> {
+  const button = document.querySelector<HTMLButtonElement>('#playPauseButton');
+  if (!button) {
+    throw new Error('Play/pause button not rendered');
+  }
+  for (let i = 0; i < 50; i += 1) {
+    if (!button.disabled) {
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  throw new Error('Transport did not become ready within timeout');
 }
 
 const keydownListeners: Array<EventListenerOrEventListenerObject> = [];
@@ -161,6 +183,7 @@ describe('Tempo Trainer transport controls', () => {
         }),
     );
 
+    await waitForTransportReady();
     playPauseButton?.click();
     await flushMicrotasks();
 
@@ -196,6 +219,7 @@ describe('Tempo Trainer transport controls', () => {
         }),
     );
 
+    await waitForTransportReady();
     playPauseButton?.click();
     await flushMicrotasks();
 
@@ -225,6 +249,7 @@ describe('Tempo Trainer transport controls', () => {
     );
 
     const initialStartCount = startMetronomeMock.mock.calls.length;
+    await waitForTransportReady();
     window.dispatchEvent(
       new KeyboardEvent('keydown', { code: 'Space', key: ' ' }),
     );
