@@ -12,3 +12,10 @@ coverage/
 
 # User-supplied scores are local compatibility fixtures, not app assets.
 /guitarpro/
+
+# Local credentials, workspace processes and linked worktrees.
+.env
+.env.*
+!.env.example
+.dev-workspace/
+.worktrees/

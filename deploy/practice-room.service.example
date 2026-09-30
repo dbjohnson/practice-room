@@ -1,0 +1,17 @@
+[Unit]
+Description=Practice Room authenticated web gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/bryan/code/practice-room
+ExecStart=/usr/bin/node --import tsx src/platform/serve.ts
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+LimitCORE=0
+
+[Install]
+WantedBy=default.target

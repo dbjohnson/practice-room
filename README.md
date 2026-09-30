@@ -11,7 +11,46 @@ npm ci
 npm run dev
 ```
 
-Open http://localhost:5173. No accounts, API keys, backend or external AI service are needed. Fonts and the sampled instrument bank are served locally. Audio input needs localhost or HTTPS.
+Open http://localhost:5174. Plain local development needs no account, API keys or external AI service. Fonts and the sampled instrument bank are served locally. Audio input needs localhost or HTTPS. The hosted app uses Google sign-in; practice data remains on the browser device.
+
+## Dev workspaces and hosted sign-in
+
+Practice Room adopts Atlas's branch/worktree workflow with a reusable Node/Vite kit. Use `npm run workspace -- new <task-name>` for a new branch and worktree, or `npm run workspace -- start` in an existing feature branch. `status`, `list`, `restart` and `stop` manage those servers. Repo-local skills cover the same lifecycle, rebase and PR preparation.
+
+The configured public origin is **https://practice.loomen.net**. Point Cloudflare at **http://127.0.0.1:8200**, the authenticated gateway. Ordinary Vite uses **5174**, and managed dev servers use **8210–8309**. `npm run build && npm start` serves the protected app. Google client credentials and explicit app/developer allowlists live in ignored `.env`; the callback is `https://practice.loomen.net/auth/google/callback`. The current local setup reuses Atlas's OAuth client with owner-only access. Public service activation is separate from development.
+
+Developers use `/dev/` to choose running builds, with shareable `/dev/use/<id>` links. Both HTTP and HMR WebSockets require developer access through the gateway. Google accounts and dev builds get separate browser-storage namespaces; signing in does not sync or migrate existing practice data.
+
+See [workspace setup, operation and adoption](docs/workspaces.md). `npm run workspace:adopt -- --help` previews or installs the shared kit in another Vite app without copying secrets, music-app code or user data.
+
+### Reuse this process for a new app
+
+The personal `$bootstrap-app` skill packages the setup process and a standalone
+copy of the kit. In a future app session, say:
+
+> Use $bootstrap-app to set up this app at https://new-app.loomen.net with the shared dev workspace workflow and Google sign-in.
+
+The skill supplies the repeatable workflow; each app supplies its domain, ports,
+access policy and authorized OAuth client. Its installer currently supports
+static ESM Vite apps; other frameworks need an adapter. It installs repo-local
+workspace/link/rebase/rebuild/wrapup skills for the app's ongoing sessions.
+
+The maintained skill and shared kit live in the private
+[dbjohnson/agent-skills](https://github.com/dbjohnson/agent-skills) repository.
+Install it on another machine with:
+
+```sh
+git clone git@github.com:dbjohnson/agent-skills.git
+cd agent-skills
+node scripts/link-skill.mjs bootstrap-app
+```
+
+The linker registers the checkout in both personal skill locations, preserving
+an existing installation when replacement is explicitly requested. Shared fixes
+belong in `agent-skills` first. Practice Room keeps its independently runnable
+copy; `workspace-kit.json` records the adopted release. Updating the personal
+skill does not update or deploy this app. Review and test kit changes here before
+adopting a newer release. Credentials and browser data remain local to each app.
 
 ## A first tour
 
@@ -44,7 +83,7 @@ Jam prompts use a small deterministic parser, not a language model. The generate
 
 Imported embedded recordings are detected but are not synchronized or played. Section ranges start from the first occurrence of each measure. Custom bends and uncommon notation should be compared with the source. Files are limited to 20 MB and 2,000 measures; production imports need worker isolation and stronger compressed-file limits.
 
-There is no cloud sync, recording playback, teacher dashboard, account system, calibrated latency, automated mastery assessment or automatic difficulty promotion. Raw input audio is neither uploaded nor retained. Clearing browser data removes local music and history.
+There is no cloud sync, recording playback, teacher dashboard, calibrated latency, automated mastery assessment or automatic difficulty promotion. Google sign-in controls hosted access; imports and progress stay on the browser device. Raw input audio is neither uploaded nor retained. Clearing browser data removes local music and history.
 
 ## Shared architecture
 
@@ -85,7 +124,7 @@ npm run preview
 
 Tests exercise musical parsing, full-bar arrangements, subdivision timing, generated shuffle notation, low bass through high guitar pitch fixtures, confidence filtering, note matching, import rejection/deduplication and evidence-based milestones. Controlled-clock hook tests cover count-in boundaries, interrupted takes, restart isolation, explicit saving, interface removal/reconnection and resource cleanup. Coverage reporting focuses on pure timing, music and analysis functions; it is not whole-app coverage. Browser checks and remaining validation gaps are recorded in [spikes/prototype-verification.md](spikes/prototype-verification.md).
 
-Use `npm run format` / `npm run format:check` for Prettier, configured in `package.json`. CI verifies the app; the old automatic S3 deployment has been removed. Nothing is deployed by this work.
+Use `npm run check` for the combined checks, and `npm run format` / `npm run format:check` for Prettier, configured in `package.json`. CI verifies the app; the old automatic S3 deployment has been removed. Deployments are managed separately from CI.
 
 ## Next increments
 
@@ -103,14 +142,18 @@ Clone or pull `main` from [dbjohnson/practice-room](https://github.com/dbjohnson
 git clone git@github.com:dbjohnson/practice-room.git
 cd practice-room
 npm ci
-npm run dev -- --port 5173 --strictPort
+npm run dev -- --port 5174 --strictPort
 ```
 
 Dependencies and generated build/font/soundfont files are regenerated locally. User-supplied Guitar Pro scores are local compatibility fixtures and are not committed; copy those separately if needed.
 
 Audio input still comes from the musician's browser and locally connected interface. Access the remote development server through a localhost SSH port forward or HTTPS so browser audio permissions work. Browser-local imports and progress are not part of the repository; changing browser/origin will not move them. Use the existing progress export before changing origins if those records are needed.
 
-Start the next coding session in the checkout and ask it to read `AGENTS.md`, this README, and `spikes/prototype-verification.md`. Completed work includes the three shared practice concepts, GP/MusicXML import, notation/TAB, sampled playback, loops/tempo/mixer, jams, experimental assessment/local progress, and the Instrument & tuner view. The latest increment removed unused trainer assets, editor settings and generated design previews, and added recording lifecycle regression coverage with fixes for opening/count-in notes, duplicate starts and input removal during initialization. The selected direction is recording reliability; player-event alignment and import races remain next steps. The latest automated checks passed: 71 tests, lint, formatting and type checking/build. Earlier desktop/mobile browser inspection and synthetic stereo input/tuner checks are documented in the verification notes. Physical DI guitar/bass, real interface drivers and Safari/Firefox remain unvalidated.
+Start the next coding session in the checkout and ask it to read `AGENTS.md`, this README, and `spikes/prototype-verification.md`. Completed work includes the three shared practice concepts, GP/MusicXML import, notation/TAB, sampled playback, loops/tempo/mixer, jams, experimental assessment/local progress, and the Instrument & tuner view. Repository cleanup and recording lifecycle fixes cover opening/count-in notes, duplicate starts and input removal during initialization.
+
+The latest increment adds Atlas-style dev worktrees and skills, Google protection for the hosted app, account/build storage namespaces and an adoption command for other Vite apps. Cloudflare must forward to `127.0.0.1:8200`; dev port 8210 bypasses authentication and must remain private. Reuse Atlas's Google client with the Practice Room callback; credentials stay in ignored `.env`. All 103 tests, lint, formatting and type checking/build pass. Synthetic desktop/mobile browser checks cover the account controls, dev build routing, notation and sign-out. A real Google account sign-in remains unverified. The prepared service template is under `deploy/`; see [workspace operations](docs/workspaces.md) before changing hosting.
+
+Return to recording reliability next: player-event alignment and import races remain open. Physical DI guitar/bass, real interface drivers and Safari/Firefox remain unvalidated.
 
 ## Notices
 

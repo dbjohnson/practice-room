@@ -31,9 +31,8 @@ production checkout, push, open a PR or deploy as part of this skill.
    branch merge structure. Resolve routine conflicts by inspecting both changes
    and affected callers, stage only resolved files, and use
    `GIT_EDITOR=true git rebase --continue`. Preserve both intentions; do not use
-   blanket ours/theirs choices or skip commits to silence conflicts. Reconcile
-   pending QMS IDs/revisions without overwriting upstream records. Regenerate
-   derived documentation from its canonical sources when necessary. If a genuine
+   blanket ours/theirs choices or skip commits to silence conflicts. Update
+   affected documentation when necessary. If a genuine
    product decision blocks resolution, ask that specific question and retain the
    recovery refs and conflict state. To abandon this rebase, use `git rebase
    --abort` before restoring saved edits; never use a hard reset or clean.
@@ -49,10 +48,10 @@ production checkout, push, open a PR or deploy as part of this skill.
    `git merge-base --is-ancestor <target-commit> HEAD`, inspect the final diff and
    status, and confirm no unresolved entries or rebase state remain. Review the
    rebased commits against the backup, using `git range-diff` when useful. Sync
-   dependencies with `uv sync` if they changed; run lint and the smallest tests
+   dependencies with `npm ci` if they changed; run lint and the smallest tests
    covering conflict resolutions and affected interfaces. Apply the repository's
    broader verification rules where relevant; full PR checks belong to the
-   [PR preparation workflow](../../../README.md#pull-request-preparation).
+   [workspace workflow](../../../docs/workspaces.md).
 
 Report the worktree/branch, fetched main commit, conflict resolutions, checks and
 any remaining limitations, plus the backup ref and any stash retained for recovery.

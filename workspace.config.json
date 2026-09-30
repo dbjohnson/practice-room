@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "name": "Practice Room",
+  "slug": "practice-room",
+  "origin": "https://practice.loomen.net",
+  "port": 8200,
+  "devPortStart": 8210,
+  "baseBranch": "main",
+  "staticDir": "dist",
+  "devCommand": [
+    "npm",
+    "run",
+    "dev",
+    "--",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    "{port}",
+    "--strictPort"
+  ],
+  "installCommand": ["npm", "ci"]
+}
