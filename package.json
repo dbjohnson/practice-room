@@ -1,35 +1,45 @@
 {
-  "name": "tempo-trainer",
-  "version": "0.1.0",
+  "name": "practice-room",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.12.0"
   },
- "scripts": {
-   "dev": "vite",
-   "build": "vite build",
-   "preview": "vite preview",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 0.0.0.0",
     "test": "vitest run",
-   "test:watch": "vitest --watch",
-   "typecheck": "tsc --noEmit",
-   "guitarpro:ocr": "python3 scripts/generate_guitarpro.py guitarpro/01.JPG guitarpro/02.JPG guitarpro/03.JPG",
-   "lint": "eslint src tests --ext .ts --max-warnings=0"
- },
- "dependencies": {
- },
- "devDependencies": {
-   "@types/node": "^20.11.19",
-   "@typescript-eslint/eslint-plugin": "^6.21.0",
-   "@typescript-eslint/parser": "^6.21.0",
-   "eslint": "^8.56.0",
-   "eslint-config-prettier": "^9.1.0",
-   "eslint-import-resolver-typescript": "^3.6.1",
-   "eslint-plugin-import": "^2.29.1",
-    "jsdom": "^24.0.0",
-   "prettier": "^3.2.5",
-   "typescript": "^5.3.3",
-   "vite": "^5.0.12",
-   "vitest": "^1.3.1"
- }
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src tests",
+    "format": "prettier --write src tests *.ts *.json *.html *.js",
+    "format:check": "prettier --check src tests *.ts *.json *.html *.js"
+  },
+  "dependencies": {
+    "@coderline/alphatab": "^1.8.4",
+    "@fontsource-variable/fraunces": "^5.3.0",
+    "@fontsource-variable/manrope": "^5.3.0",
+    "lucide-react": "^1.49.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@coderline/alphatab-vite": "^1.8.4",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "@vitest/coverage-v8": "^4.1.11",
+    "eslint": "^10.11.0",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.9",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.0",
+    "vite": "^8.3.1",
+    "vitest": "^4.1.11"
+  }
 }

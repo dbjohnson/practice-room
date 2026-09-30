@@ -1,42 +1,35 @@
-import { describe, expect, test } from 'vitest';
-
-import { frequencyToNote } from '../../src/audio/pitch';
-
-describe('frequencyToNote', () => {
-  test('A4 (440 Hz) maps to A4 with zero cents', () => {
-    const result = frequencyToNote(440);
-    expect(result.noteName).toBe('A4');
-    expect(result.cents).toBe(0);
+import { describe, expect, it } from 'vitest';
+import { estimatePitch } from '../../src/audio/pitch';
+const sine = (midi: number, rate: number, amplitude = 0.2) =>
+  Float32Array.from(
+    { length: 4096 },
+    (_, i) => amplitude * Math.sin((2 * Math.PI * (440 * 2 ** ((midi - 69) / 12)) * i) / rate),
+  );
+describe('isolated instrument pitch estimation', () => {
+  it.each([23, 28, 40, 52, 64, 69, 84])('resolves MIDI %i without octave error', (midi) => {
+    for (const rate of [44100, 48000]) {
+      const pitch = estimatePitch(sine(midi, rate), rate);
+      expect(pitch.midi).not.toBeNull();
+      expect(Math.abs(pitch.midi! - midi)).toBeLessThan(0.1);
+      expect(pitch.confidence).toBeGreaterThan(0.95);
+    }
   });
-
-  test('maps C4 correctly', () => {
-    expect(frequencyToNote(261.63).noteName).toBe('C4');
+  it('rejects silence, DC, empty input and invalid rates', () => {
+    for (const buffer of [
+      new Float32Array(4096),
+      new Float32Array(4096).fill(0.1),
+      new Float32Array(),
+      sine(69, 48000, 0.001),
+    ])
+      expect(estimatePitch(buffer, 48000).midi).toBeNull();
+    expect(estimatePitch(sine(69, 48000), 0).midi).toBeNull();
   });
-
-  test('a slightly sharp A4 reports a positive cent deviation', () => {
-    const result = frequencyToNote(445);
-    expect(result.noteName).toBe('A4');
-    expect(result.cents).toBeGreaterThan(0);
-    expect(result.cents).toBeLessThanOrEqual(20);
-  });
-
-  test('a slightly flat A4 reports a negative cent deviation', () => {
-    const result = frequencyToNote(435);
-    expect(result.noteName).toBe('A4');
-    expect(result.cents).toBeLessThan(0);
-    expect(result.cents).toBeGreaterThanOrEqual(-20);
-  });
-
-  test('cents stay within a semitone range', () => {
-    // Halfway between A4 and A#4 (~466 Hz)
-    const result = frequencyToNote(466.16);
-    expect(result.cents).toBeGreaterThanOrEqual(-50);
-    expect(result.cents).toBeLessThanOrEqual(50);
-  });
-
-  test('rounds to the nearest note for high frequencies', () => {
-    const result = frequencyToNote(880);
-    expect(result.noteName).toBe('A5');
-    expect(result.cents).toBe(0);
+  it('handles clean harmonic tone and constant DC offset', () => {
+    const tone = sine(40, 48000);
+    const overtone = sine(52, 48000, 0.06);
+    tone.forEach((x, i) => {
+      tone[i] = x + overtone[i] + 0.05;
+    });
+    expect(estimatePitch(tone, 48000).midi).toBeCloseTo(40, 1);
   });
 });

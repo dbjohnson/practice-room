@@ -1,0 +1,38 @@
+[
+  {
+    "file": "00-design-comparison.pdf",
+    "pages": 4,
+    "text_characters": 6432,
+    "source_links": 0,
+    "bytes": 102905,
+    "out_of_bounds": [],
+    "text_overlaps": []
+  },
+  {
+    "file": "01-phrase.pdf",
+    "pages": 17,
+    "text_characters": 28647,
+    "source_links": 10,
+    "bytes": 163088,
+    "out_of_bounds": [],
+    "text_overlaps": []
+  },
+  {
+    "file": "02-trail.pdf",
+    "pages": 17,
+    "text_characters": 29093,
+    "source_links": 10,
+    "bytes": 163762,
+    "out_of_bounds": [],
+    "text_overlaps": []
+  },
+  {
+    "file": "03-pocket.pdf",
+    "pages": 17,
+    "text_characters": 29072,
+    "source_links": 10,
+    "bytes": 164238,
+    "out_of_bounds": [],
+    "text_overlaps": []
+  }
+]

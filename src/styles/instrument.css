@@ -1,0 +1,567 @@
+.instrument-page {
+  max-width: 1240px;
+  margin: 0 auto;
+}
+.signal-route {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  margin: 28px 0 23px;
+  color: #637e6c;
+}
+.signal-route > span {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.signal-route strong {
+  font-size: 12px;
+  font-weight: 550;
+}
+.signal-route > i {
+  width: 34px;
+  height: 1px;
+  background: #c5d1c3;
+}
+.route-caption {
+  margin-left: auto;
+  font-family: 'Fraunces Variable', serif;
+  font-style: italic;
+  font-size: 17px;
+  color: #899780;
+}
+.feedback-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 18px 21px;
+  background: #f5ecd9;
+  border: 1px solid #e7d5b0;
+  border-radius: 9px;
+  color: #856329;
+  margin-bottom: 25px;
+}
+.feedback-warning > svg {
+  margin-top: 2px;
+}
+.feedback-warning strong {
+  font-size: 13px;
+  font-weight: 650;
+}
+.feedback-warning p {
+  font-size: 12px;
+  line-height: 1.8;
+  color: #7c6a49;
+  margin-top: 5px;
+  max-width: 920px;
+}
+.instrument-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 0.85fr) minmax(360px, 1.15fr);
+  gap: 24px;
+  align-items: stretch;
+}
+.input-setup-card,
+.tuner-panel {
+  border: 1px solid #dce3d7;
+  background: var(--paper);
+  border-radius: 11px;
+  min-width: 0;
+}
+.interface-connection {
+  padding: 24px 25px;
+}
+.setup-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.setup-section-heading h2 {
+  font-size: 15px;
+  font-weight: 620;
+  letter-spacing: -0.3px;
+}
+.setup-section-heading > svg {
+  margin-left: auto;
+  color: #8ba184;
+}
+.setup-number {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #eaf0e4;
+  font-size: 10px;
+  color: #6e8861;
+  font-weight: 650;
+  flex-shrink: 0;
+}
+.setup-description,
+.audio-access p {
+  font-size: 12px;
+  line-height: 1.85;
+  color: #77836e;
+  margin: 17px 0;
+}
+.audio-access {
+  padding: 0 0 6px;
+}
+.audio-access p {
+  padding: 13px 15px;
+  background: #f0f3e9;
+  border-radius: 6px;
+  font-size: 11px;
+}
+.audio-access strong {
+  font-weight: 620;
+  color: #627357;
+}
+.audio-access .text-button {
+  display: inline-flex;
+  margin-left: 13px;
+}
+.setup-field {
+  display: block;
+  margin-top: 20px;
+  color: #63755b;
+  font-size: 12px;
+  font-weight: 550;
+}
+.setup-field select,
+.tuner-controls select {
+  display: block;
+  width: 100%;
+  margin-top: 8px;
+  border: 1px solid #d6dfcc;
+  background: #fbfcf6;
+  border-radius: 6px;
+  padding: 11px 9px;
+  font-size: 12px;
+  color: #334e3f;
+}
+.device-refresh {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 9px;
+}
+.device-refresh > span,
+.channel-field > span {
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.7;
+  color: #7c8970;
+}
+.device-refresh .text-button {
+  font-size: 10px;
+  gap: 5px;
+  padding-top: 2px;
+  flex-shrink: 0;
+}
+.channel-field > span {
+  display: block;
+  margin-top: 8px;
+}
+.connection-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 20px;
+}
+.connection-ready {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  color: #356b4e;
+}
+.connection-help {
+  color: #72826a;
+  font-size: 11px;
+  margin-top: 21px;
+  line-height: 1.8;
+}
+.connection-help summary {
+  cursor: pointer;
+}
+.connection-help p {
+  margin-top: 9px;
+  color: #7a8771;
+}
+.input-level-panel {
+  padding: 23px 25px 22px;
+  background: #f2f5eb;
+  border-top: 1px solid #dde5d3;
+  border-radius: 0 0 11px 11px;
+}
+.level-readout {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 22px 0 12px;
+}
+.level-readout > span:first-child {
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #6f8260;
+}
+.level-readout > strong {
+  font-size: 19px;
+  font-weight: 550;
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: #4e6942;
+}
+.level-readout small {
+  font-size: 10px;
+  font-weight: 400;
+  color: #89977d;
+}
+.clip-indicator {
+  border: 1px solid #ddded1;
+  background: #e8ebdf;
+  color: #a1a997;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 4px 5px;
+  border-radius: 3px;
+}
+.clip-indicator.active {
+  color: white;
+  background: #b84336;
+  border-color: #b84336;
+}
+.input-segments {
+  display: flex;
+  gap: 3px;
+  height: 25px;
+  padding: 4px;
+  background: #e0e7d8;
+  border-radius: 4px;
+}
+.input-segments i {
+  flex: 1;
+  border-radius: 1px;
+  background: #d0d9c6;
+}
+.input-segments .green.lit {
+  background: #709560;
+}
+.input-segments .amber.lit {
+  background: #cea24c;
+}
+.input-segments .red.lit {
+  background: #c26847;
+}
+.level-scale {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 4px 0;
+  font-size: 9px;
+  color: #8c9b7c;
+}
+.level-advice {
+  margin: 18px 0 12px;
+  min-height: 61px;
+}
+.level-advice strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #537249;
+}
+.level-advice p,
+.setup-hint {
+  font-size: 11px;
+  line-height: 1.8;
+  margin-top: 6px;
+  color: #78876c;
+}
+.level-hot .level-advice strong {
+  color: #926b27;
+}
+.level-clip .level-advice strong {
+  color: #aa4335;
+}
+.setup-hint {
+  border-top: 1px solid #dee6d4;
+  padding-top: 12px;
+  font-size: 10px;
+}
+.tuner-panel {
+  padding: 24px 27px;
+  background: radial-gradient(ellipse at 50% 42%, #edf2e5 0, #fffefa 63%);
+  display: flex;
+  flex-direction: column;
+}
+.tuner-controls {
+  display: flex;
+  gap: 14px;
+  margin-top: 22px;
+}
+.tuner-controls label {
+  flex: 1;
+  color: #6f8063;
+  font-size: 11px;
+}
+.tuner-controls label:last-child {
+  flex: 0 1 139px;
+}
+.tuner-controls select {
+  font-size: 11px;
+  padding: 9px 7px;
+}
+.tuner-note-display {
+  text-align: center;
+  margin: 34px 0 3px;
+}
+.tuner-mode-label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: #839477;
+}
+.tuner-note {
+  position: relative;
+  font-family: 'Fraunces Variable', serif;
+  font-size: 116px;
+  line-height: 1.13;
+  color: #365e43;
+  font-weight: 390;
+  letter-spacing: -7px;
+  margin: 7px 0 0;
+  min-height: 131px;
+}
+.tuner-note.waiting {
+  color: #abb99e;
+}
+.tuner-note sub {
+  font-family: 'Manrope Variable', sans-serif;
+  font-size: 27px;
+  letter-spacing: -1px;
+  vertical-align: baseline;
+  margin-left: 7px;
+}
+.tuner-check {
+  display: inline-grid;
+  place-items: center;
+  position: absolute;
+  top: 48%;
+  margin-left: 16px;
+  width: 29px;
+  height: 29px;
+  border-radius: 50%;
+  background: #e2edd9;
+  color: #487647;
+}
+.tuner-frequency {
+  height: 20px;
+  font-size: 11px;
+  color: #7e8c72;
+  font-variant-numeric: tabular-nums;
+  margin-top: 6px;
+}
+.tuner-dial {
+  margin-top: 19px;
+}
+.tuner-dial svg {
+  width: 100%;
+  display: block;
+  overflow: visible;
+}
+.dial-rail {
+  fill: #e3e8dc;
+}
+.dial-target {
+  fill: #ccddb9;
+}
+.dial-tick {
+  stroke: #afbda0;
+  stroke-width: 1;
+}
+.dial-center {
+  stroke: #618855;
+  stroke-width: 2;
+}
+.tuner-dial text {
+  fill: #859579;
+  font:
+    13px 'Manrope Variable',
+    sans-serif;
+}
+.dial-needle {
+  fill: #53794b;
+  stroke: #53794b;
+  stroke-width: 2;
+  transition: transform 100ms ease-out;
+}
+.tuner-dial.inactive {
+  opacity: 0.6;
+}
+.tuner-dial-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 7%;
+  margin-top: 2px;
+  color: #8a977d;
+  font-size: 9px;
+  letter-spacing: 1.2px;
+}
+.tuner-dial-labels strong {
+  font-size: 11px;
+  letter-spacing: 0;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.tuning-guidance {
+  text-align: center;
+  font-size: 13px;
+  color: #7c886e;
+  margin: 24px 0;
+  min-height: 23px;
+}
+.tuning-guidance.tuned {
+  color: #3a794b;
+  font-weight: 650;
+}
+.tuner-strings {
+  display: flex;
+  gap: 7px;
+  justify-content: center;
+  margin-top: auto;
+}
+.tuner-strings button {
+  flex: 1;
+  max-width: 64px;
+  min-height: 57px;
+  background: #f4f5ed;
+  border: 1px solid #dfe4d6;
+  border-radius: 7px;
+  color: #7b8f6d;
+  font-size: 11px;
+}
+.tuner-strings button.selected {
+  border-color: #a3b894;
+  background: #e9f0df;
+  color: #3f6840;
+  box-shadow: 0 0 0 1px #a3b89420;
+}
+.tuner-strings small {
+  display: block;
+  font-size: 9px;
+  color: #94a289;
+  margin-bottom: 3px;
+}
+.tuner-strings strong {
+  font-size: 19px;
+  font-weight: 550;
+}
+.tuner-strings sub {
+  font-size: 10px;
+  vertical-align: baseline;
+  margin-left: 1px;
+}
+.tuner-footnote {
+  text-align: center;
+  font-size: 10px;
+  color: #819175;
+  line-height: 1.8;
+  margin: 15px 0 0;
+}
+.setup-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 24px;
+}
+.setup-footer p {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  color: #819075;
+  font-size: 11px;
+  line-height: 1.7;
+}
+@media (max-width: 1100px) {
+  .instrument-grid {
+    grid-template-columns: 1fr;
+  }
+  .tuner-panel {
+    min-height: 600px;
+  }
+  .route-caption {
+    display: none;
+  }
+}
+@media (max-width: 700px) {
+  .signal-route {
+    gap: 10px;
+    margin: 22px 0;
+  }
+  .signal-route > span {
+    flex-direction: column;
+    gap: 7px;
+    align-items: center;
+    text-align: center;
+    flex: 1;
+  }
+  .signal-route strong {
+    font-size: 10px;
+    line-height: 1.6;
+  }
+  .signal-route > i {
+    width: 16px;
+    flex-shrink: 0;
+  }
+  .feedback-warning {
+    padding: 16px;
+    gap: 10px;
+  }
+  .feedback-warning p {
+    font-size: 11px;
+  }
+  .feedback-warning > svg {
+    width: 18px;
+  }
+  .interface-connection,
+  .input-level-panel,
+  .tuner-panel {
+    padding: 22px 19px;
+  }
+  .tuner-panel {
+    min-height: 575px;
+  }
+  .tuner-note {
+    font-size: 102px;
+    min-height: 116px;
+  }
+  .tuner-controls {
+    gap: 9px;
+  }
+  .tuner-controls label:last-child {
+    flex-basis: 119px;
+  }
+  .tuner-strings {
+    gap: 5px;
+  }
+  .tuner-strings button {
+    min-height: 52px;
+  }
+  .tuner-strings strong {
+    font-size: 17px;
+  }
+  .setup-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+  .setup-footer .button {
+    justify-content: center;
+  }
+}

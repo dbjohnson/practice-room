@@ -1,26 +1,20 @@
-import path from 'node:path';
-
 import { defineConfig } from 'vitest/config';
-
 export default defineConfig({
-  resolve: {
-    alias: {
-      '@audio': path.resolve(__dirname, 'src/audio'),
-      '@time': path.resolve(__dirname, 'src/time'),
-      '@ui': path.resolve(__dirname, 'src/ui'),
-      '@lib': path.resolve(__dirname, 'src/lib'),
-    },
-  },
   test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: ['tests/setup/vitest.setup.ts'],
-    include: ['tests/**/*.spec.ts'],
+    environment: 'node',
+    include: ['tests/**/*.spec.ts', 'tests/**/*.spec.tsx'],
     coverage: {
       provider: 'v8',
+      include: [
+        'src/time/**/*.ts',
+        'src/music/jam.ts',
+        'src/audio/assessment.ts',
+        'src/audio/pitch.ts',
+        'src/audio/onsets.ts',
+        'src/domain/milestones.ts',
+      ],
       reporter: ['text', 'html'],
-      include: ['src/**/*.ts'],
-      exclude: ['src/ui/**/*.ts'],
+      thresholds: { 'src/time/**': { statements: 90, branches: 90, functions: 90, lines: 90 } },
     },
   },
 });

@@ -1,0 +1,363 @@
+{
+  "inspected_at": "2026-09-29",
+  "parser": "@coderline/alphatab 1.8.4",
+  "source_directory": "/Users/bryan/code/tempo-trainer/guitarpro",
+  "method": "Local binary import with ScoreLoader; GP8 ZIP and XML metadata inspected with Python standard library. Files were not uploaded.",
+  "scope_limit": "Successful parsing is not validation of rendering, musical fidelity, playback or assessment. Counts are notated model objects, not necessarily unfolded sounding events.",
+  "notes": [
+    "Hotel California import logged unsupported bend type fallback to custom warnings.",
+    "Comfort Food XML reports GPVersion 8.1.2, 32 SyncPoint automations, swing eighths in all 53 bars and an embedded MP3. Title and artist fields are blank.",
+    "No repeat starts, repeat ends or alternate endings were found by this model inspection; add fixtures to cover these cases.",
+    "Existing prototype requests unprocessed mic constraints, estimates onsets and mono pitch, and applies a fixed 25 ms timing tolerance. Its logic is not treated as a production assessment engine."
+  ],
+  "files": [
+    {
+      "file": "Born-under-a-bad-sign - Albert-King.gp4",
+      "title": "Born under a bad sign",
+      "artist": "Albert King",
+      "tempo": 90,
+      "masterBars": 84,
+      "tracks": [
+        {
+          "name": "Bass",
+          "staves": [
+            {
+              "tuning": [
+                43,
+                38,
+                33,
+                28
+              ],
+              "percussion": false,
+              "capo": 0
+            }
+          ]
+        },
+        {
+          "name": "Steve Cropper",
+          "staves": [
+            {
+              "tuning": [
+                64,
+                59,
+                55,
+                50,
+                45,
+                40
+              ],
+              "percussion": false,
+              "capo": 0
+            }
+          ]
+        },
+        {
+          "name": "Trumpets",
+          "staves": [
+            {
+              "tuning": [
+                64,
+                59,
+                55,
+                50,
+                45,
+                40
+              ],
+              "percussion": false,
+              "capo": 0
+            }
+          ]
+        },
+        {
+          "name": "Drums",
+          "staves": [
+            {
+              "tuning": [],
+              "percussion": true,
+              "capo": 0
+            }
+          ]
+        },
+        {
+          "name": "Albert King  ",
+          "staves": [
+            {
+              "tuning": [
+                64,
+                59,
+                55,
+                50,
+                45,
+                40
+              ],
+              "percussion": false,
+              "capo": 0
+            }
+          ]
+        },
+        {
+          "name": "Piano",
+          "staves": [
+            {
+              "tuning": [
+                64,
+                59,
+                55,
+                50,
+                45,
+                40
+              ],
+              "percussion": false,
+              "capo": 0
+            }
+          ]
+        }
+      ],
+      "meters": [
+        "4/4"
+      ],
+      "repeatStarts": 0,
+      "repeatEnds": 0,
+      "alternateEndings": 0,
+      "beats": 2867,
+      "notes": 2695,
+      "bends": 26,
+      "ties": 0,
+      "slides": 5,
+      "harmonics": 0,
+      "tuplets": 0,
+      "grace": 1,
+      "palm": 0,
+      "backing": null
+    },
+    {
+      "file": "Eagles (The) - Hotel California.gp4",
+      "title": "Hotel California",
+      "artist": "The Eagles",
+      "tempo": 74,
+      "masterBars": 121,
+      "tracks": [
+        {
+          "name": "Vocals",
+          "staves": [
+            {
+              "tuning": [
+                64,
+                59,
+                55,
+                50,
+                45,
+                40
+              ],
+              "percussion": false,
+              "capo": 0
+            }
+          ]
+        },
+        {
+          "name": "12-String Acoustic",
+          "staves": [
+            {
+              "tuning": [
+                64,
+                59,
+                55,
+                50,
+                45,
+                40
+              ],
+              "percussion": false,
+              "capo": 0
+            }
+          ]
+        },
+        {
+          "name": "6-String Acoustic",
+          "staves": [
+            {
+              "tuning": [
+                64,
+                59,
+                55,
+                50,
+                45,
+                40
+              ],
+              "percussion": false,
+              "capo": 0
+            }
+          ]
+        },
+        {
+          "name": "Rhythm Guitar",
+          "staves": [
+            {
+              "tuning": [
+                64,
+                59,
+                55,
+                50,
+                45,
+                40
+              ],
+              "percussion": false,
+              "capo": 0
+            }
+          ]
+        },
+        {
+          "name": "Fill Guitar #1",
+          "staves": [
+            {
+              "tuning": [
+                64,
+                59,
+                55,
+                50,
+                45,
+                40
+              ],
+              "percussion": false,
+              "capo": 0
+            }
+          ]
+        },
+        {
+          "name": "Fill Guitar #2",
+          "staves": [
+            {
+              "tuning": [
+                64,
+                59,
+                55,
+                50,
+                45,
+                40
+              ],
+              "percussion": false,
+              "capo": 0
+            }
+          ]
+        },
+        {
+          "name": "Solo Guitar #1",
+          "staves": [
+            {
+              "tuning": [
+                64,
+                59,
+                55,
+                50,
+                45,
+                40
+              ],
+              "percussion": false,
+              "capo": 0
+            }
+          ]
+        },
+        {
+          "name": "Solo Guitar #2",
+          "staves": [
+            {
+              "tuning": [
+                64,
+                59,
+                55,
+                50,
+                45,
+                40
+              ],
+              "percussion": false,
+              "capo": 0
+            }
+          ]
+        },
+        {
+          "name": "Bass",
+          "staves": [
+            {
+              "tuning": [
+                43,
+                38,
+                33,
+                28
+              ],
+              "percussion": false,
+              "capo": 0
+            }
+          ]
+        },
+        {
+          "name": "Percussion",
+          "staves": [
+            {
+              "tuning": [],
+              "percussion": true,
+              "capo": 0
+            }
+          ]
+        }
+      ],
+      "meters": [
+        "4/4"
+      ],
+      "repeatStarts": 0,
+      "repeatEnds": 0,
+      "alternateEndings": 0,
+      "beats": 6731,
+      "notes": 9630,
+      "bends": 122,
+      "ties": 108,
+      "slides": 72,
+      "harmonics": 0,
+      "tuplets": 103,
+      "grace": 7,
+      "palm": 0,
+      "backing": null
+    },
+    {
+      "file": "Solo 3 - Comfort Food.gp",
+      "title": "",
+      "artist": "",
+      "tempo": 88,
+      "masterBars": 53,
+      "tracks": [
+        {
+          "name": "Overdriven Guitar",
+          "staves": [
+            {
+              "tuning": [
+                64,
+                59,
+                55,
+                50,
+                45,
+                40
+              ],
+              "percussion": false,
+              "capo": 0
+            }
+          ]
+        }
+      ],
+      "meters": [
+        "4/4"
+      ],
+      "repeatStarts": 0,
+      "repeatEnds": 0,
+      "alternateEndings": 0,
+      "beats": 683,
+      "notes": 605,
+      "bends": 57,
+      "ties": 46,
+      "slides": 66,
+      "harmonics": 0,
+      "tuplets": 248,
+      "grace": 49,
+      "palm": 0,
+      "backing": [
+        "rawAudioFile"
+      ]
+    }
+  ]
+}

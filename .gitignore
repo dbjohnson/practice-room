@@ -1,2 +1,10 @@
 node_modules
 dist
+
+# Recreated from alphaTab by vite.config.ts
+public/font/
+public/soundfont/
+coverage/
+
+# User-supplied scores are local compatibility fixtures, not app assets.
+/guitarpro/
