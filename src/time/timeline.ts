@@ -14,10 +14,6 @@ export function ticksToSeconds(ticks: number, bpm: number): number {
   if (bpm <= 0 || !Number.isFinite(bpm)) throw new Error('Tempo must be positive.');
   return ((ticks / TICKS_PER_BEAT) * 60) / bpm;
 }
-export function swingOffset(step: number, ratio = 2): number {
-  if (ratio <= 0 || !Number.isFinite(ratio)) throw new Error('Swing ratio must be positive.');
-  return Math.floor(step / 2) + (step % 2 ? ratio / (ratio + 1) : 0);
-}
 export function formatTime(seconds: number): string {
   const value = Math.max(0, Math.floor(Number.isFinite(seconds) ? seconds : 0));
   return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, '0')}`;

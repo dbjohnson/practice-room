@@ -14,8 +14,9 @@ Mockup scores, progress charts, measurements, and usability targets are illustra
 not results from testing a finished application. Notation in mockups is schematic and
 does not reproduce the supplied compositions.
 
-The existing application is unchanged. Python under `source/` only generates review
-documents. It is not a prototype or application implementation.
+These documents preserve the original design exploration. The current application
+implements all three concepts with shared components. Python under `source/` only
+generates review documents; it is not application runtime code.
 
 ## Evidence
 
@@ -36,3 +37,6 @@ python3 spikes/product-design-2026-09-29/source/validate.py
 
 The generator uses local macOS Arial and Georgia fonts. All diagrams and mockups are
 drawn as vector PDF elements, with selectable text and clickable source links.
+
+`validate.py` regenerates PNG page previews and contact sheets under `previews/`.
+Those derived images are ignored by Git; the PDFs, source and research remain tracked.

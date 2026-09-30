@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  clampTempo,
-  formatTime,
-  normalizeRange,
-  swingOffset,
-  ticksToSeconds,
-} from '../../src/time/timeline';
+import { clampTempo, formatTime, normalizeRange, ticksToSeconds } from '../../src/time/timeline';
 
 describe('practice timing', () => {
   it('bounds tempo and rejects non-finite input', () => {
@@ -23,12 +17,6 @@ describe('practice timing', () => {
   });
   it('rejects invalid tempos', () => {
     for (const bpm of [0, -1, NaN, Infinity]) expect(() => ticksToSeconds(960, bpm)).toThrow();
-  });
-  it('places swing offbeats without drifting the next downbeat', () => {
-    expect([0, 1, 2, 3, 4].map((x) => swingOffset(x))).toEqual([0, 2 / 3, 1, 1 + 2 / 3, 2]);
-    expect(swingOffset(1, 1)).toBe(0.5);
-    expect(swingOffset(1, 3)).toBe(0.75);
-    for (const ratio of [0, -1, NaN]) expect(() => swingOffset(1, ratio)).toThrow();
   });
   it('formats durations without negative or invalid values', () => {
     expect([0, 65.8, -5, NaN, Infinity].map(formatTime)).toEqual([

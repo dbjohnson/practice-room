@@ -6,5 +6,9 @@ public/font/
 public/soundfont/
 coverage/
 
+# Personal editor settings and regenerated design previews.
+.vscode/
+/spikes/product-design-2026-09-29/previews/
+
 # User-supplied scores are local compatibility fixtures, not app assets.
 /guitarpro/

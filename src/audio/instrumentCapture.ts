@@ -23,6 +23,8 @@ export async function openInstrumentCapture(
     context = new AudioContext();
     await context.resume();
     if (!isCurrent()) throw new DOMException('Connection cancelled.', 'AbortError');
+    if (track.readyState !== 'live')
+      throw new Error('The input disconnected. Reconnect your interface and try again.');
     const settings = track.getSettings();
     const channelCount = Math.max(1, Math.min(32, settings.channelCount ?? 1));
     const source = context.createMediaStreamSource(stream);

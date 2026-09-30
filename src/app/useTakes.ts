@@ -28,18 +28,19 @@ export function useTakes(options: TakeOptions) {
     startTick: number;
     options: TakeOptions;
   } | null>(null);
-  const lastAnchor = useRef<{ tick: number; at: number; bpm: number } | null>(null);
+  const lastTick = useRef<number | null>(null);
   const onPosition = useCallback((tick: number, bpm: number) => {
-    const now = performance.now() / 1000;
-    lastAnchor.current = { tick, at: now, bpm };
     const take = capture.current;
-    if (take && take.origin === null && tick >= take.startTick)
-      take.origin = now - ticksToSeconds(tick - take.startTick, bpm);
+    if (!take || tick < take.startTick) return;
+    lastTick.current = tick;
+    if (take.origin === null)
+      take.origin = performance.now() / 1000 - ticksToSeconds(tick - take.startTick, bpm);
   }, []);
   const onObservation = useCallback((observation: Observation) => {
     const take = capture.current;
-    if (take?.origin !== null && take?.origin !== undefined)
-      take.observations.push({ ...observation, time: observation.time - take.origin });
+    // Input can arrive before the first playback position. Keep absolute timestamps
+    // until review so delayed pitch detection cannot pull count-in audio into the take.
+    if (take && observation.time >= take.started) take.observations.push(observation);
   }, []);
   const make = (
     origin: Take['origin'],
@@ -67,24 +68,33 @@ export function useTakes(options: TakeOptions) {
     capture.current = null;
     setRecording(false);
     const opts = captured.options;
-    const playedUntil = completed ? Infinity : (lastAnchor.current?.tick ?? captured.startTick - 1);
+    const ended = performance.now() / 1000;
+    const origin = captured.origin;
+    const playedUntil =
+      origin === null
+        ? captured.startTick - 1
+        : completed
+          ? Infinity
+          : (lastTick.current ?? captured.startTick - 1);
     const expected = expectedNotes(opts.score, opts.track, opts.range, opts.api.current).filter(
       (note) => note.tick <= playedUntil,
     );
-    const notes = assess(expected, captured.observations, opts.tempo, captured.startTick);
+    const observations =
+      origin === null
+        ? []
+        : captured.observations
+            .filter((observation) => observation.time >= origin && observation.time <= ended)
+            .map((observation) => ({ ...observation, time: observation.time - origin }));
+    const notes = assess(expected, observations, opts.tempo, captured.startTick);
     const result = {
-      ...make(
-        'microphone',
-        opts,
-        notes,
-        captured.origin === null ? 0 : performance.now() / 1000 - captured.origin,
-      ),
-      interrupted: !completed,
+      ...make('microphone', opts, notes, origin === null ? 0 : Math.max(0, ended - origin)),
+      interrupted: !completed || origin === null,
     };
     setReview(result);
     // Saving is explicit in the review. Unclear or interrupted takes never alter progress automatically.
   }, []);
   const begin = () => {
+    if (capture.current) return false;
     const opts = latest.current;
     const api = opts.api.current;
     if (!api?.isReadyForPlayback) return false;
@@ -96,9 +106,9 @@ export function useTakes(options: TakeOptions) {
       started: performance.now() / 1000,
       origin: null,
       startTick: range.startTick,
-      options: { ...opts },
+      options: { ...opts, range: { ...opts.range } },
     };
-    lastAnchor.current = null;
+    lastTick.current = null;
     setRecording(true);
     api.tickPosition = range.startTick;
     return true;

@@ -25,6 +25,7 @@ const createContext = vi.fn();
 
 beforeEach(() => {
   vi.clearAllMocks();
+  track.readyState = 'live';
   getUserMedia.mockResolvedValue(stream);
   context.resume.mockResolvedValue(undefined);
   vi.stubGlobal('navigator', { mediaDevices: { getUserMedia, enumerateDevices: vi.fn() } });
@@ -80,6 +81,15 @@ describe('audio interface capture', () => {
     await expect(openInstrumentCapture('usb-123')).rejects.toThrow('Audio unavailable');
     expect(track.stop).toHaveBeenCalled();
     expect(context.close).toHaveBeenCalled();
+  });
+  it('releases an input removed while the audio context is starting', async () => {
+    context.resume.mockImplementationOnce(async () => {
+      track.readyState = 'ended';
+    });
+    await expect(openInstrumentCapture('usb-123')).rejects.toThrow('disconnected');
+    expect(track.stop).toHaveBeenCalled();
+    expect(context.close).toHaveBeenCalled();
+    expect(context.createMediaStreamSource).not.toHaveBeenCalled();
   });
   it('does not replace an unavailable selected device with another input', async () => {
     getUserMedia.mockRejectedValueOnce(new DOMException('Device removed', 'OverconstrainedError'));

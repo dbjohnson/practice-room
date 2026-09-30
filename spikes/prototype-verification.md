@@ -3,7 +3,7 @@
 ## Automated checks
 
 - `npm run lint` and TypeScript checks pass.
-- 59 Vitest cases across twelve files cover musical input parsing, import handling, generated score completeness, guitar/bass pitch estimation, delayed pitch at attacks, note matching, confidence filtering, milestones, and timing bounds/subdivisions/swing. Instrument setup adds device filtering, access errors, exact device constraints, channel routing, cancellation/resource cleanup, input levels/clipping, tuner cents/reference calculations and stable pitch filtering.
+- 71 Vitest cases across fourteen files cover musical input parsing, import handling, generated score completeness/shuffle notation, guitar/bass pitch estimation, delayed pitch at attacks, note matching, confidence filtering, milestones, and timing bounds/subdivisions. Instrument setup adds device filtering, access errors, exact device constraints, channel routing, cancellation/resource cleanup, input levels/clipping, tuner cents/reference calculations and stable pitch filtering. Controlled-clock React hook tests add recording lifecycle and device-removal coverage.
 - The timing module has 100% statement/branch/function/line coverage. Coverage thresholds enforce at least 90% for that module. Coverage reporting intentionally targets the pure music/audio/domain functions rather than presenting whole-app coverage.
 - `npm run build` produces the static app, module workers/worklet, fonts and SoundFont. A separately served production build was opened and its notation, sampled player initialization, advancing playback status and cursor were checked.
 - `git diff --check` passes. The old deployment workflow was replaced with verification-only CI; hosted run results are available in the repository's Actions tab.
@@ -53,7 +53,16 @@ These files were read from the original local repository for compatibility tests
 - Human usability review is still needed. Earlier concept checks relied on DOM, interaction, layout and SVG inspection when screenshot capture was unavailable; the new setup view has also been inspected in screenshots.
 - Test physical DI guitar, DI bass and acoustic microphone recordings; assess latency, pitch precision/recall, repeated attacks, bleed and distortion. The present numbers are uncalibrated and provisional.
 - Test Firefox/Safari and physical mobile browsers; resizing Chromium verifies layout, not device-specific audio support.
-- Add deterministic hook/integration tests for count-in, stop/restart, device removal and import races. Current browser checks are recorded manual automation, not a committed end-to-end suite.
+- Add deterministic player-event alignment and import-race integration tests. Take/input hooks now cover count-in, stop/restart, device removal/reconnection and cleanup, using a real generated MIDI timeline with simulated player callbacks and capture resources. Current browser checks are recorded manual automation, not a committed end-to-end suite.
 - Repeats, variable tempo, overlapping voices and expressive techniques require a richer assessment timeline. Sampled playback supports more notation than input grading.
 - Review accessibility with assistive technology, particularly score navigation and low-contrast secondary text.
 - Audit production dependency/license obligations, compressed-file budgets, storage schema migrations and sample-bank loading before deployment.
+
+## Repository cleanup and recording reliability follow-up
+
+- Removed personal `.vscode` settings, unused trainer drum samples and the unused `swingOffset` helper/test. Playback still uses alphaTab's SoundFont and shuffle notation. Moved the active Prettier settings into `package.json`, preserving formatting while removing the standalone config.
+- Removed 29 generated PNG previews (about 5 MB). Design PDFs, generation/validation source and research remain tracked; `validate.py` regenerates previews, which are now ignored.
+- Reproduced and fixed dropped opening attacks when input arrives before the first playback-position callback. Observations retain absolute timestamps until review; only events within the established performance window are assessed. Delayed count-in attacks are excluded.
+- Duplicate record requests no longer replace an active capture. Stopping in the count-in yields an empty, interrupted review; restarting gets fresh evidence and a fresh clock. Review remains separate from explicit saving, and repeated saves do not duplicate history.
+- Reproduced and fixed input removal while `AudioContext.resume()` is pending. The stream and context are released instead of reporting a disconnected input as ready. Hook integration checks also cover disconnects during count-in/playback, reconnecting, navigation and unmount cleanup.
+- The added tests run in React Strict Mode with an isolated browser storage implementation. They verify lifecycle wiring and deterministic callback timing, not physical-device latency or real instrument accuracy. Tests, coverage, lint, formatting and the production build pass on `om`; the collaborative browser was unavailable for this follow-up, so earlier browser checks above were not repeated.
