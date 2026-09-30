@@ -1,26 +1,20 @@
 ---
 name: wrapup
-description: Prepare a pull request to close a work session, then carry out authorized post-merge work and workspace cleanup.
+description: Prepare and open a pull request for this work session, preserving the dev workspace until the user closes it.
 ---
 
-First use the [rebase skill](../rebase/SKILL.md) to bring this session's development
-worktree onto the latest `origin/main`, preserving local changes and resolving
-conflicts. Complete the rebase and restoration before final PR verification.
-Then prepare and open a PR using the shared
-[PR preparation workflow](../../../README.md#pull-request-preparation), reusing
-the completed rebase. Start the code phase while
-completing deferred documentation, and run the docs phase after those edits.
-Inspect both results before opening the PR. Reuse passing results whose inputs
-remain applicable instead of repeating full suites after Markdown-only edits.
+Use the [rebase skill](../rebase/SKILL.md) to bring this feature branch onto the
+latest `origin/main`, preserving local changes. Review the final diff, update
+affected documentation and run `npm run check`. Reuse passing results when
+their inputs have not changed. Include any failures or remaining limitations.
 
-Reuse decisions already given in this session. 
-Continue PR preparation while awaiting these optional choices. Unanswered choices do not
-authorize production work and need not delay the PR. 
+Commit the session's changes, push the feature branch and open a concise PR
+describing resulting behavior and verification. Follow `AGENTS.md` for labels
+and UI evidence. Register the full PR URL with the thread's `link_pull_request`
+tool when available, then verify it appears in `list_thread_pull_requests`.
 
-Keep the PR description concise: resulting behavior, verification, original
-failures and remaining limitations. Wait for actual merge before any authorized
-production work; opening a PR does not authorize merging it. Load the
-[update](../update/SKILL.md) skill only when
-those follow-ups are requested. Once the work is approved for close and the
-authorized follow-ups are complete, run `uv run python -m src.dev_workspace stop`
-in this worktree to stop its server and drop its clone. Remove the local worktree and/or branch.
+Opening a PR does not authorize merging, deploying or closing a dev workspace.
+After actual merge and the user's authorization to close the work, run
+`npm run workspace -- stop` in this worktree. Remove a linked worktree/branch
+only after checking that no uncommitted or unmerged work remains. Do not remove
+the primary checkout. Production service changes are separate authorized work.

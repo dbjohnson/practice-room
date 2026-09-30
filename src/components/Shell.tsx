@@ -14,6 +14,7 @@ import {
 import type { ReactNode } from 'react';
 import { useRoom } from '../app/RoomContext';
 import type { Concept, Page } from '../domain/types';
+import { AccountControls } from './AccountControls';
 
 const concepts = [
   { id: 'phrase' as Concept, name: 'Phrase', label: 'Learn the piece', Icon: Waves },
@@ -125,6 +126,7 @@ export function Shell({ children }: { children: ReactNode }) {
             </button>
           </div>
         </header>
+        <AccountControls />
         <main id="main">{children}</main>
         <footer className="app-footer">
           <span>Made for the part you can’t quite play. Yet.</span>

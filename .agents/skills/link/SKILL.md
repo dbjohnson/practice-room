@@ -1,16 +1,13 @@
 ---
 name: link
-description: Provide a link to the dev environment
+description: Provide a verified link to this session's dev build.
 ---
 
-Provide the current dev build's link on the Atlas production site. It has the
-form `{production}/dev/use/{schema}` (for example
-`https://practive.loomen.net/dev/use/dev_my_branch`): production signs the
-developer in with Google and forwards the browser to this worktree's dev
-server, so it works from any network, without Tailscale.
+Run `npm run workspace -- status` in the session's worktree. If stopped, use
+`npm run workspace -- start`. Share the printed `Build link:` URL: the hosted
+gateway signs developers in with Google, then opens this branch's dev server.
 
-Run `uv run python -m src.dev_workspace status` and give the `Build link:` URL
-it prints. If the workspace is not running, start it
-(`uv run python -m src.dev_workspace start`, or `restart` if it has stopped) and
-give the `Build link:` URL that prints. Do not show the tailnet URLs, ports or
-the "All dev workspaces" directory.
+The origin comes from `workspace.config.json`. Verify the gateway is reachable
+before claiming the public link works. If it is not yet deployed, state that
+and provide the printed local URL with localhost-forwarding guidance. Do not
+start, restart or change the public service merely to produce a link.

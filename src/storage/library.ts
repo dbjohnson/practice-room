@@ -1,9 +1,10 @@
 import type { Piece, Take } from '../domain/types';
+import { storageNamespace } from '../workspace/client';
 
 const DB_NAME = 'practice-room-v1';
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
+    const request = indexedDB.open(storageNamespace(DB_NAME), 1);
     request.onupgradeneeded = () => request.result.createObjectStore('scores');
     request.onsuccess = () => resolve(request.result);
     request.onerror = () =>
@@ -53,7 +54,7 @@ export async function removeScore(id: string): Promise<void> {
 }
 export function readLocal<T>(key: string, fallback: T): T {
   try {
-    const value = localStorage.getItem(`practice-room:${key}`);
+    const value = localStorage.getItem(`${storageNamespace('practice-room')}:${key}`);
     return value ? (JSON.parse(value) as T) : fallback;
   } catch {
     return fallback;
@@ -61,7 +62,7 @@ export function readLocal<T>(key: string, fallback: T): T {
 }
 export function writeLocal(key: string, value: unknown): boolean {
   try {
-    localStorage.setItem(`practice-room:${key}`, JSON.stringify(value));
+    localStorage.setItem(`${storageNamespace('practice-room')}:${key}`, JSON.stringify(value));
     return true;
   } catch {
     return false;
