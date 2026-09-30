@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import type { UserConfig } from 'vite';
 
 export function workspaceViteConfig(): UserConfig {
@@ -5,6 +6,30 @@ export function workspaceViteConfig(): UserConfig {
   return {
     base,
     plugins: [
+      {
+        name: 'workspace-isolation',
+        // Anchor to this project's root: when it is itself `.worktrees/<name>`, an
+        // unanchored `**/.worktrees/**` would match every file it owns.
+        config(user) {
+          const root = resolve(user.root ?? process.cwd());
+          return {
+            server: {
+              watch: { ignored: [`${root}/.worktrees/**`, `${root}/.dev-workspace/**`] },
+              fs: {
+                deny: [
+                  '.env',
+                  '.env.*',
+                  '*.{crt,pem}',
+                  '**/.git/**',
+                  `${root}/.dev-workspace/**`,
+                  `${root}/.worktrees/**`,
+                  `${root}/src/platform/**`,
+                ],
+              },
+            },
+          };
+        },
+      },
       {
         name: 'workspace-readiness',
         configureServer(server) {
@@ -23,19 +48,5 @@ export function workspaceViteConfig(): UserConfig {
         },
       },
     ],
-    server: {
-      watch: { ignored: ['**/.worktrees/**', '**/.dev-workspace/**'] },
-      fs: {
-        deny: [
-          '.env',
-          '.env.*',
-          '*.{crt,pem}',
-          '**/.git/**',
-          '**/.dev-workspace/**',
-          '**/.worktrees/**',
-          '**/src/platform/**',
-        ],
-      },
-    },
   };
 }
