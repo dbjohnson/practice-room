@@ -77,6 +77,28 @@ checkout. Adjust its paths for the project and host before installation.
 Starting or stopping the public service, repointing DNS/tunnel ingress, and
 deploying are separate operations requiring the user's authorization.
 
+### Production service on `om`
+
+The gateway runs as the systemd **user** unit `practice-room.service`, installed
+from `deploy/practice-room.service.example`. It is enabled and the user has
+linger enabled, so it starts at boot without a login and restarts on any exit.
+On `om`, `ExecStart` uses mise's major-version path
+(`~/.local/share/mise/installs/node/26/bin/node`) because there is no
+`/usr/bin/node`. Cloudflare Tunnel (`cloudflared.service`, token-managed)
+already routes `practice.loomen.net` to `127.0.0.1:8200`.
+
+```sh
+systemctl --user status practice-room
+journalctl --user -u practice-room -f
+curl -s https://practice.loomen.net/health   # {"app":"practice-room","status":"ok"}
+```
+
+The service serves `dist/` from the checkout in its `WorkingDirectory`, so
+switching branches there changes production. To deploy: update that checkout to
+`main`, run `npm ci && npm run build`, and `systemctl --user restart
+practice-room` if server code under `src/platform/` changed. Dev workspaces are
+separate processes and do not survive a reboot.
+
 ## Browser integration and local data
 
 Before rendering an app, call `initializeWorkspace()` from
