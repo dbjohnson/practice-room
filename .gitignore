@@ -1,5 +1,6 @@
 node_modules
 dist
+samples
 
 # Recreated from alphaTab by vite.config.ts
 public/font/
