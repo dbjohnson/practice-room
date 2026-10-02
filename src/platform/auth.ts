@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from 'express';
-import { cookie, digest, localReturn, Sessions } from './sessions';
+import { cookie, digest, localReturn, Sessions, SESSION_LIFETIME_MS } from './sessions';
 import type { Authorization, GoogleProvider } from './google';
 import { escapeHtml, page } from './pages';
 import type { WorkspaceConfig } from './config';
@@ -84,7 +84,7 @@ export function installAuth(app: Express, options: AuthOptions) {
       sessions.remove(cookie(request.headers.cookie, sessionCookie));
       response.cookie(sessionCookie, sessions.create(user), {
         ...cookieOptions,
-        maxAge: 12 * 3600_000,
+        maxAge: SESSION_LIFETIME_MS,
       });
       response.redirect(saved.returnTo);
     } catch {

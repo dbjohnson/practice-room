@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { getWorkspaceSession, signOut, workspaceId } from '../workspace/client';
 import { useRoom } from '../app/RoomContext';
+import { DevBuildSelect } from './DevBuildSelect';
 
 export function AccountControls() {
   const session = getWorkspaceSession();
@@ -10,11 +11,7 @@ export function AccountControls() {
   return (
     <div className="account-controls">
       {workspaceId && <span className="pill">Dev build</span>}
-      {session?.developer && (
-        <a href="/dev/" onClick={room.halt}>
-          Dev builds
-        </a>
-      )}
+      {session?.developer && <DevBuildSelect />}
       {session && (
         <>
           <span className="account-name" title={session.user.email}>

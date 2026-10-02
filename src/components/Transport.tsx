@@ -1,22 +1,19 @@
-import {
-  ChevronDown,
-  Circle,
-  Minus,
-  Pause,
-  Play,
-  Plus,
-  Repeat2,
-  RotateCcw,
-  Timer,
-  Volume2,
-} from 'lucide-react';
+import { Circle, Minus, Pause, Play, Plus, Repeat2, RotateCcw, Timer } from 'lucide-react';
 import { TempoInput } from './TempoInput';
 import { useRoom } from '../app/RoomContext';
 import { clampTempo } from '../time/timeline';
+import { PassFeedback } from './PassFeedback';
+import { ClickControl } from './ClickControl';
 
 export function Transport() {
   const r = useRoom();
-  const locked = r.takes.recording;
+  const locked =
+    r.gymRunMatches ||
+    r.takes.recording ||
+    r.takePlayback.active ||
+    r.preparingReplay ||
+    r.exerciseLoop.active ||
+    r.exerciseLoop.preparing;
   const tempoChange = (value: number) => {
     r.halt();
     r.setTempo(clampTempo(value));
@@ -34,18 +31,25 @@ export function Transport() {
             <RotateCcw size={17} />
           </button>
           <button
-            className={`play-button ${locked ? 'is-recording' : ''}`}
+            className={`play-button ${r.mode === 'assess' && !r.takePlayback.active ? 'is-recording' : ''}`}
             onClick={r.play}
-            disabled={!r.player.ready}
+            disabled={
+              !r.player.ready ||
+              r.takes.audio.processing ||
+              r.preparingReplay ||
+              (r.gymRunMatches && r.gym.rest > 0)
+            }
             aria-label={
-              r.player.playing
-                ? 'Pause playback'
-                : r.mode === 'assess'
-                  ? 'Record a take'
-                  : 'Play passage'
+              r.exerciseLoop.preparing
+                ? 'Cancel loop preparation'
+                : r.player.playing
+                  ? 'Pause playback'
+                  : r.mode === 'assess'
+                    ? 'Record a take'
+                    : 'Play passage'
             }
           >
-            {r.player.playing ? (
+            {r.player.playing || r.exerciseLoop.preparing ? (
               <Pause size={21} fill="currentColor" />
             ) : r.mode === 'assess' ? (
               <Circle size={20} fill="currentColor" />
@@ -55,10 +59,20 @@ export function Transport() {
           </button>
           <button
             className={`icon-button ${r.loop ? 'selected' : ''}`}
-            aria-label="Loop passage"
+            aria-label={r.library.piece.gymSet ? 'Loop full exercise' : 'Loop passage'}
             aria-pressed={r.loop}
-            disabled={locked}
-            onClick={() => r.setLoop(!r.loop)}
+            disabled={
+              r.takes.recording ||
+              r.takePlayback.active ||
+              r.preparingReplay ||
+              r.exerciseLoop.active ||
+              r.exerciseLoop.preparing
+            }
+            onClick={() => {
+              if (!r.loop && r.library.piece.gymSet)
+                r.setRange({ start: 1, end: r.library.piece.bars });
+              r.setLoop(!r.loop);
+            }}
           >
             <Repeat2 size={20} />
           </button>
@@ -90,29 +104,8 @@ export function Transport() {
             <Plus size={15} />
           </button>
         </div>
-        <input
-          className="tempo-slider"
-          aria-label="Tempo slider"
-          type="range"
-          min={30}
-          max={240}
-          value={r.tempo}
-          disabled={locked}
-          onChange={(e) => tempoChange(Number(e.target.value))}
-        />
-        <span className="speed-percent">
-          {Math.round((r.tempo / r.library.piece.bpm) * 100)}% <span>of original</span>
-        </span>
         <div className="transport-divider" />
-        <button
-          className={`transport-option ${r.click ? 'selected' : ''}`}
-          aria-pressed={r.click}
-          onClick={() => r.setClick(!r.click)}
-          disabled={locked}
-        >
-          <Volume2 size={16} />
-          Click
-        </button>
+        <ClickControl />
         <button
           className={`transport-option ${r.countIn ? 'selected' : ''}`}
           aria-pressed={r.countIn}
@@ -124,6 +117,7 @@ export function Transport() {
         </button>
       </div>
       <div className="transport-bottom">
+        <PassFeedback />
         <div className="range-controls">
           <span>LOOP</span>
           <label>
@@ -162,22 +156,24 @@ export function Transport() {
               ))}
             </select>
           </label>
-          <span className="range-measures">{r.range.end - r.range.start + 1} measures</span>
         </div>
         <span className="playback-status">
-          {locked ? (
+          {r.takes.recording ? (
             <>
               <span className="record-dot" />
               Listening to your take
             </>
+          ) : r.exerciseLoop.preparing ? (
+            'Preparing continuous loop…'
           ) : r.player.playing ? (
             `Playing measure ${r.player.bar}`
           ) : r.player.ready ? (
-            'Ready when you are'
+            'Ready'
+          ) : r.player.instrumentsReady ? (
+            'Preparing music…'
           ) : (
-            'Loading sampled instruments…'
+            'Loading instruments…'
           )}
-          <ChevronDown size={13} />
         </span>
       </div>
     </div>

@@ -1,18 +1,20 @@
+import { useId } from 'react';
 import { AudioLines, TriangleAlert } from 'lucide-react';
 import type { InputStatus } from '../domain/types';
 import { levelGuidance } from '../audio/inputLevels';
 
 export function InputLevelMeter({ status }: { status: InputStatus }) {
+  const titleId = useId();
   const ready = status.state === 'ready';
   const guidance = levelGuidance(status.peakDb, status.clipped);
   return (
     <section
       className={`input-level-panel level-${ready ? guidance.kind : 'off'}`}
-      aria-labelledby="input-level-title"
+      aria-labelledby={titleId}
     >
       <div className="setup-section-heading">
         <span className="setup-number">02</span>
-        <h2 id="input-level-title">Find a healthy level</h2>
+        <h2 id={titleId}>Find a healthy level</h2>
         <AudioLines size={19} />
       </div>
       <div className="level-readout">

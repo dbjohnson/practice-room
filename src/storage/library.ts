@@ -1,3 +1,4 @@
+import { summarize } from '../audio/assessment';
 import type { Piece, Take } from '../domain/types';
 import { storageNamespace } from '../workspace/client';
 
@@ -93,9 +94,18 @@ export function loadTakes(): Take[] {
             typeof t.id === 'string' &&
             typeof t.pieceId === 'string' &&
             Array.isArray(t.notes) &&
-            t.rubric === 'mono-v1' &&
+            ['mono-v1', 'mono-v2', 'mono-v3', 'midi-v1'].includes(t.rubric) &&
             !!t.range,
         )
         .slice(0, 200)
+        .map((take) => {
+          const scores = summarize(take.notes);
+          return {
+            ...take,
+            timingScore: scores.timingScore,
+            timingCoverage: scores.timingCoverage,
+            overallScore: scores.overallScore,
+          };
+        })
     : [];
 }

@@ -12,6 +12,7 @@ interface Session {
   expires: number;
   csrf: string;
 }
+export const SESSION_LIFETIME_MS = 7 * 24 * 3600_000;
 export const token = () => randomBytes(32).toString('base64url');
 export const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 
@@ -40,7 +41,7 @@ export class Sessions {
       if (session.expires <= this.now()) delete this.entries[key];
     if (Object.keys(this.entries).length >= 10000) throw new Error('Session capacity reached.');
     const id = token();
-    this.entries[digest(id)] = { user, expires: this.now() + 12 * 3600_000, csrf: token() };
+    this.entries[digest(id)] = { user, expires: this.now() + SESSION_LIFETIME_MS, csrf: token() };
     this.persist();
     return id;
   }

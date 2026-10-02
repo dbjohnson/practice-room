@@ -1,18 +1,15 @@
 import { AudioLines, Check, CircleHelp } from 'lucide-react';
 import { useRoom } from '../app/RoomContext';
+import { Credits } from './Credits';
 import { Modal } from './Modal';
 
 export function HelpDialog() {
   const r = useRoom();
   return (
-    <Modal
-      open={r.helpOpen}
-      title="One room. Three ways to practice."
-      onClose={() => r.setHelpOpen(false)}
-    >
+    <Modal open={r.helpOpen} title="Practice Room" onClose={() => r.setHelpOpen(false)}>
       <p className="body-copy">
-        This is a working design prototype. Switch between Phrase, Trail and Pocket to try different
-        ways of learning with the same musical tools.
+        Open your music, choose a passage and play. Tuner, Mixer, Effects, Passages and Feedback are
+        available as separate panels below the score when you need them.
       </p>
       <div className="help-list">
         <p>
@@ -26,25 +23,26 @@ export function HelpDialog() {
         <p>
           <AudioLines size={17} />
           <span>
-            <strong>Three distinct practice loops</strong>Phrase organizes passages. Trail walks
-            through an editable session. Pocket lets you rehearse with the band or strip it back to
-            the click.
+            <strong>Playback modes</strong>Listen to the band, mute your part with Play along, or
+            use Record take to capture audio and see its waveform on the score. Replay includes the
+            backing track by default. Space starts and pauses playback.
           </span>
         </p>
         <p>
           <CircleHelp size={17} />
           <span>
             <strong>Still a prototype</strong>Single-note detection and timing are unvalidated.
-            Chords and expressive techniques are not graded. No cloud sync, raw recording replay,
-            teacher AI or automatic tempo promotion. Trail completion is self-marked.
+            Chords and expressive techniques are not graded. No cloud sync, teacher AI or automatic
+            tempo promotion.
           </span>
         </p>
       </div>
       <p className="muted-copy">
-        Notation and playback: alphaTab (MPL-2.0). Included sampled instruments: SONiVOX SoundFont
-        (Apache-2.0). Type: Manrope and Fraunces (OFL). Files and results stay in this browser;
-        clearing browser data removes them.
+        Notation and playback: alphaTab (MPL-2.0). Recorded guitar, bass, piano and drums with
+        SONiVOX fallback voices. Type: Manrope and Fraunces (OFL). Files, recordings and results
+        stay in this browser; clearing browser data removes them.
       </p>
+      <Credits />
       <button className="button button-primary" onClick={() => r.setHelpOpen(false)}>
         Back to the music
       </button>

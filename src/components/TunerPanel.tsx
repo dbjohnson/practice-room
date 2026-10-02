@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Check, Music2 } from 'lucide-react';
 import type { InputStatus } from '../domain/types';
 import { tunerReading, tunings } from '../audio/tuner';
 import { noteName } from '../music/jam';
 
 export function TunerPanel({ status }: { status: InputStatus }) {
+  const titleId = useId();
   const [tuning, setTuning] = useState('guitar');
   const [target, setTarget] = useState<number | null>(null);
   const [reference, setReference] = useState(440);
@@ -32,10 +33,10 @@ export function TunerPanel({ status }: { status: InputStatus }) {
               ? 'A little flat — tune up'
               : 'A little sharp — tune down';
   return (
-    <section className={`tuner-panel ${inTune ? 'is-in-tune' : ''}`} aria-labelledby="tuner-title">
+    <section className={`tuner-panel ${inTune ? 'is-in-tune' : ''}`} aria-labelledby={titleId}>
       <div className="setup-section-heading">
         <span className="setup-number">03</span>
-        <h2 id="tuner-title">A moment to tune</h2>
+        <h2 id={titleId}>A moment to tune</h2>
         <Music2 size={19} />
       </div>
       <div className="tuner-controls">

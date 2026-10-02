@@ -1,0 +1,47 @@
+:root {
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --canvas: #101722;
+  --ink: #e4ecf8;
+  --paper: #172234;
+  --muted: #a2b2c9;
+  --border: #30425c;
+  --accent: #80b6ff;
+  --accent-dark: #afcfff;
+  --accent-soft: #243b59;
+  --accent-faint: #1c2d44;
+  --secondary-fg: #b5c4d9;
+  --danger-fg: #ffaaa4;
+  --danger-soft: #3c252b;
+  --surface-raised: #1c2a3e;
+  --surface-soft: #23334a;
+  --notation-ink: #e1eaf6;
+  --button-bg: #2868be;
+  --button-hover: #337bd6;
+  --chart-notes: #80b6ff;
+  --chart-timing: #b5a1f1;
+}
+[data-theme='dark'] .play-button.is-recording {
+  background: #a74535;
+}
+[data-theme='dark'] .tuner-dial {
+  background: var(--paper);
+}
+[data-theme='dark'] .notation-host svg {
+  color: var(--notation-ink);
+  fill: var(--notation-ink);
+}
+[data-theme='dark'] .notation-host svg [stroke]:not([stroke='none']) {
+  stroke: var(--notation-ink);
+}
+[data-theme='dark'] .notation-host svg [fill='#000000'] {
+  fill: var(--notation-ink);
+}
+[data-theme='dark'] .skip-link {
+  background: var(--paper);
+}
+[data-theme='dark'] .score-paper {
+  background: #080b10;
+}

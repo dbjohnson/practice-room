@@ -11,10 +11,13 @@ import { useRoom } from '../app/RoomContext';
 import { InterfaceConnection } from '../components/InterfaceConnection';
 import { InputLevelMeter } from '../components/InputLevelMeter';
 import { TunerPanel } from '../components/TunerPanel';
+import { LatencyPanel } from '../components/LatencyPanel';
+import { InputGain } from '../components/InputGain';
+import { MidiConnection } from '../components/MidiConnection';
 
 export function InstrumentPage() {
   const r = useRoom();
-  const ready = r.input.status.state === 'ready';
+  const ready = r.inputConnected;
   return (
     <div className="instrument-page page-enter">
       <div className="page-heading">
@@ -65,14 +68,20 @@ export function InstrumentPage() {
       <div className="instrument-grid">
         <div className="input-setup-card">
           <InterfaceConnection />
+          <InputGain />
           <InputLevelMeter status={r.input.status} />
+          <LatencyPanel />
+          <MidiConnection />
         </div>
         <TunerPanel status={r.input.status} />
       </div>
       <div className="setup-footer">
         <p>
           <ShieldCheck size={17} />
-          <span>Your input stays on this device. No raw audio is saved or uploaded.</span>
+          <span>
+            Your input stays on this device. Takes record audio locally; Save take keeps it in this
+            browser. Nothing is uploaded.
+          </span>
         </p>
         <button className="button button-primary" onClick={() => r.setPage('practice')}>
           {ready ? 'Ready to practice' : 'Practice without input'}

@@ -12,6 +12,7 @@ export function LibraryPage() {
   const [removing, setRemoving] = useState<string | null>(null);
   const pieces = r.library.pieces.filter(
     (p) =>
+      p.source !== 'exercise' &&
       `${p.title} ${p.tags.join(' ')}`.toLowerCase().includes(query.toLowerCase()) &&
       (filter === 'All music' ||
         (filter === 'Your imports' && p.source === 'import') ||

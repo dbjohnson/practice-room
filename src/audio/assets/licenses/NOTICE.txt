@@ -1,0 +1,33 @@
+Practice Room recorded instruments
+
+Piano: Salamander Grand Piano, Alexander Holm, CC BY 3.0.
+https://github.com/sfzinstruments/SalamanderGrandPiano
+https://creativecommons.org/licenses/by/3.0/
+Changes: selected three velocity layers and minor-third pitch intervals;
+converted recordings to mono 44.1 kHz Ogg Vorbis, trimmed/levelled/faded,
+limited decay to seven seconds, and mapped into a SoundFont instrument.
+This is a subset of the recordings, not the original SFZ implementation.
+Full license: salamander.txt.
+
+Bass: Karoryfer Black and Blue Basses, CC0 1.0.
+https://shop.karoryfer.com/pages/free-black-and-blue-basses
+Selected the fingered black hollowbody bass, four velocity layers.
+Full license: karoryfer-bass.txt.
+
+Guitar: Karoryfer Black and Green Guitars, CC0 1.0.
+https://shop.karoryfer.com/pages/free-black-and-green-guitars
+Selected the green hollowbody guitar, three velocity layers.
+Full license: karoryfer-guitar.txt.
+
+Bass/guitar changes: selected every third semitone, converted to mono
+44.1 kHz Ogg Vorbis, trimmed/levelled/faded, limited decay to five seconds,
+and mapped into SoundFont instruments. Source URLs and SHA-256 checksums,
+trim points, gains and mappings are in src/audio/assets/band-manifest.json.
+
+Drums and woodblock: Kount's Memory Bank Drum Pack, from the owner's library.
+These recordings retain the pack's license; no CC0, CC BY or Apache license
+is granted for them. Selected hits are trimmed/levelled/faded and converted
+to mono 44.1 kHz Ogg; the woodblock is mono 48 kHz PCM at original level.
+
+The underlying General MIDI bank is alphaTab's SONiVOX SoundFont,
+Apache-2.0. See the SONiVOX notice distributed alongside the bank.

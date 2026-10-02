@@ -5,12 +5,19 @@ const track = {
   readyState: 'live',
   label: 'Test USB interface',
   stop: vi.fn(),
-  getSettings: vi.fn(() => ({ deviceId: 'usb-123', channelCount: 2 })),
+  getSettings: vi.fn(() => ({ deviceId: 'usb-123', channelCount: 2, latency: 0.012 })),
 };
 const stream = { getTracks: () => [track], getAudioTracks: () => [track] };
 const source = { connect: vi.fn(), disconnect: vi.fn() };
 const splitter = { connect: vi.fn(), disconnect: vi.fn() };
+const gain = { gain: { setTargetAtTime: vi.fn() }, connect: vi.fn(), disconnect: vi.fn() };
 const analyser = { fftSize: 0, smoothingTimeConstant: 1, disconnect: vi.fn() };
+const detector = {
+  connect: vi.fn(),
+  disconnect: vi.fn(),
+  port: { postMessage: vi.fn(), onmessage: null as ((event: unknown) => void) | null },
+};
+const sink = { gain: { value: 1 }, connect: vi.fn(), disconnect: vi.fn() };
 const context = {
   state: 'running',
   resume: vi.fn(),
@@ -18,6 +25,9 @@ const context = {
   destination: {},
   createMediaStreamSource: vi.fn(() => source),
   createChannelSplitter: vi.fn(() => splitter),
+  createGain: vi.fn(),
+  audioWorklet: { addModule: vi.fn() },
+  currentTime: 1,
   createAnalyser: vi.fn(() => analyser),
 };
 const getUserMedia = vi.fn();
@@ -28,7 +38,16 @@ beforeEach(() => {
   track.readyState = 'live';
   getUserMedia.mockResolvedValue(stream);
   context.resume.mockResolvedValue(undefined);
+  context.createGain.mockReturnValueOnce(gain).mockReturnValueOnce(sink);
   vi.stubGlobal('navigator', { mediaDevices: { getUserMedia, enumerateDevices: vi.fn() } });
+  vi.stubGlobal(
+    'AudioWorkletNode',
+    class {
+      constructor() {
+        return detector;
+      }
+    },
+  );
   vi.stubGlobal(
     'AudioContext',
     class {
@@ -55,15 +74,41 @@ describe('audio interface capture', () => {
     });
     expect(capture.channelCount).toBe(2);
     expect(source.connect).toHaveBeenCalledWith(splitter);
-    expect(splitter.connect).toHaveBeenCalledWith(analyser, 0);
+    expect(splitter.connect).toHaveBeenCalledWith(gain, 0);
+    expect(gain.connect).toHaveBeenCalledWith(analyser);
+    expect(gain.connect).toHaveBeenCalledWith(detector);
     capture.selectChannel(1);
-    expect(splitter.connect).toHaveBeenLastCalledWith(analyser, 1);
+    expect(splitter.connect).toHaveBeenLastCalledWith(gain, 1);
+    expect(detector.port.postMessage).toHaveBeenCalledWith('reset');
+    // The detector reaches the output only through a muted gain.
+    expect(detector.connect).toHaveBeenCalledWith(sink);
+    expect(sink.gain.value).toBe(0);
+    capture.setGain(-6);
+    expect(gain.gain.setTargetAtTime).toHaveBeenCalledWith(10 ** (-6 / 20), 1, 0.015);
+    expect(gain.connect).not.toHaveBeenCalledWith(context.destination);
     expect(source.connect).not.toHaveBeenCalledWith(context.destination);
     expect(splitter.connect).not.toHaveBeenCalledWith(context.destination);
     expect(() => capture.selectChannel(2)).toThrow('available input');
     capture.close();
     expect(track.stop).toHaveBeenCalled();
     expect(context.close).toHaveBeenCalled();
+  });
+  it('reports detected notes on the take clock', async () => {
+    const capture = await openInstrumentCapture('usb-123');
+    const handler = vi.fn();
+    vi.spyOn(performance, 'now').mockReturnValue(9000);
+    capture.listen(handler);
+    const observation = { time: 0.75, midi: 60, confidence: 0.99, rms: 0.2 };
+    detector.port.onmessage!({ data: { type: 'observation', observation } });
+    // The audio clock reads 1 s now, so this note was processed 0.25 s ago.
+    expect(handler).toHaveBeenCalledWith({
+      type: 'observation',
+      observation: { ...observation, time: 8.75 },
+    });
+    expect(capture.inputLatency).toBe(0.012);
+    capture.close();
+    expect(detector.port.onmessage).toBeNull();
+    vi.restoreAllMocks();
   });
   it('requires an explicit device choice instead of opening the default microphone', async () => {
     await expect(openInstrumentCapture('')).rejects.toThrow('Choose your audio interface');

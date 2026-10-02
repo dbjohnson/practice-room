@@ -37,19 +37,44 @@ describe('confidence-aware take feedback', () => {
     const result = assess([note(3840), note(4800)], [heard(0.025), heard(0.97)], 60, 3840);
     expect(result.map((n) => n.status)).toEqual(['matched', 'matched']);
     expect(result.map((n) => n.delta)).toEqual([25, -30]);
-    expect(summarize(result)).toEqual({ pitchAccuracy: 100, timingMs: 27.5, coverage: 100 });
+    expect(summarize(result)).toEqual({
+      pitchAccuracy: 100,
+      timingMs: 27.5,
+      placementMs: -2.5,
+      spreadMs: 27.5,
+      coverage: 100,
+      timingScore: 98,
+      timingCoverage: 100,
+      overallScore: 99,
+    });
   });
   it('does not penalize absent or ambiguous input', () => {
     expect(assess([note(0)], [], 60, 0)[0].status).toBe('unclear');
     expect(assess([note(0)], [heard(0, 60, 0.5)], 60, 0)[0].status).toBe('unclear');
     expect(assess([note(0)], [{ ...heard(0), rms: 0.9 }], 60, 0)[0].status).toBe('unclear');
     expect(assess([note(0, false)], [heard(0)], 60, 0)[0].status).toBe('unclear');
-    expect(summarize([])).toEqual({ pitchAccuracy: null, timingMs: null, coverage: 0 });
+    expect(summarize([])).toEqual({
+      pitchAccuracy: null,
+      timingMs: null,
+      placementMs: null,
+      spreadMs: null,
+      coverage: 0,
+      timingScore: null,
+      timingCoverage: 0,
+      overallScore: null,
+    });
   });
   it('separates wrong pitch and missed notes when a signal was present', () => {
     const result = assess([note(0), note(960), note(1920)], [heard(0), heard(1.01, 61)], 60, 0);
     expect(result.map((n) => n.status)).toEqual(['matched', 'pitch', 'missed']);
-    expect(summarize(result)).toEqual({ pitchAccuracy: 33, timingMs: 0, coverage: 100 });
+    expect(summarize(result)).toMatchObject({
+      pitchAccuracy: 33,
+      timingMs: 5,
+      coverage: 100,
+      timingScore: 67,
+      timingCoverage: 100,
+      overallScore: 50,
+    });
   });
   it('does not reuse a detected attack for multiple target notes', () => {
     const result = assess([note(0), note(120)], [heard(0.03)], 240, 0);
@@ -73,5 +98,140 @@ describe('confidence-aware take feedback', () => {
     expect(exampleNotes(targets).some((n) => n.status === 'pitch')).toBe(true);
     expect(exampleNotes(targets).some((n) => n.status === 'unclear')).toBe(true);
     expect(targets[7].midi).toBe(60);
+  });
+});
+
+describe('combined note and timing scores', () => {
+  it('scores all detected attacks for timing regardless of pitch confidence', () => {
+    const targets = Array.from({ length: 8 }, (_, i) => note(i * 480));
+    const observations = targets.map((n) => ({
+      ...heard(n.tick / 960),
+      midi: null,
+      confidence: 0,
+      timingReliable: true,
+    }));
+    const muted = summarize(assess(targets, observations, 60, 0));
+    const pitched = summarize(
+      assess(
+        targets,
+        observations.map((o) => ({ ...o, midi: 60, confidence: 0.99 })),
+        60,
+        0,
+      ),
+    );
+    expect(muted).toMatchObject({
+      timingScore: 100,
+      timingCoverage: 100,
+      pitchAccuracy: null,
+      coverage: 0,
+      overallScore: null,
+    });
+    expect(pitched).toMatchObject({
+      timingScore: muted.timingScore,
+      timingCoverage: muted.timingCoverage,
+      pitchAccuracy: 100,
+      coverage: 100,
+    });
+    // One clear attack cannot give a perfect timing score for an eight-note phrase.
+    expect(summarize(assess(targets, [observations[0]], 60, 0)).timingScore).toBe(13);
+    const mixed = observations.map((o, i) =>
+      i === 0 ? { ...o, midi: 60, confidence: 0.99 } : { ...o, time: o.time + 0.1 },
+    );
+    expect(summarize(assess(targets, mixed, 60, 0))).toMatchObject({
+      timingScore: 48,
+      pitchAccuracy: 100,
+      coverage: 13,
+      overallScore: null,
+    });
+  });
+  it('keeps uncertain or clipped attacks out of timing, without making pitch uncertainty lose timing credit', () => {
+    const result = assess([note(0)], [{ ...heard(0), midi: null, timingReliable: false }], 60, 0);
+    expect(summarize(result)).toMatchObject({ timingScore: null, timingCoverage: 0 });
+    expect(
+      assess([note(0, false)], [{ ...heard(0), timingReliable: true }], 60, 0)[0].timingStatus,
+    ).toBe('unclear');
+  });
+  it('reduces the take score for late correct notes and on-time wrong notes independently', () => {
+    expect(summarize(assess([note(0)], [heard(0.1)], 60, 0))).toMatchObject({
+      pitchAccuracy: 100,
+      timingScore: 40,
+      overallScore: 70,
+    });
+    expect(summarize(assess([note(0)], [heard(0, 63)], 60, 0))).toMatchObject({
+      pitchAccuracy: 0,
+      timingScore: 100,
+      overallScore: 50,
+    });
+    expect(summarize(assess([note(0)], [heard(-0.1)], 60, 0))).toMatchObject({
+      timingScore: 40,
+      overallScore: 70,
+    });
+  });
+  it('does not give an overall score when too little input is assessable', () => {
+    const results = assess([note(0), note(960, false), note(1920, false)], [heard(0)], 60, 0);
+    expect(summarize(results)).toMatchObject({
+      pitchAccuracy: 100,
+      timingScore: 100,
+      coverage: 33,
+      overallScore: null,
+    });
+  });
+  it('does not hide occasional late attacks behind a good median', () => {
+    expect(coaching(take({ timingScore: 75, timingMs: 12 })).kind).toBe('timing');
+  });
+});
+
+describe('ordered note alignment', () => {
+  const pitched = (tick: number, midi: number, eligible = true): ExpectedNote => ({
+    ...note(tick, eligible),
+    midi,
+  });
+  it('keeps one late note from shifting every later match', () => {
+    const targets = [0, 1, 2, 3].map((i) => pitched(i * 480, 60 + i));
+    const played = [heard(0.11, 60), heard(0.26, 61), heard(0.5, 62), heard(0.75, 63)];
+    const result = assess(targets, played, 120, 0);
+    expect(result.map((n) => n.status)).toEqual(['matched', 'matched', 'matched', 'matched']);
+    expect(result.map((n) => n.delta)).toEqual([110, 10, 0, 0]);
+  });
+  it('ignores stray attacks and prefers the right pitch nearby', () => {
+    const targets = [pitched(0, 60), pitched(960, 64)];
+    const played = [heard(0.01, 60), heard(0.45, 71), heard(0.96, 57), heard(1.04, 64)];
+    const result = assess(targets, played, 60, 0);
+    expect(result.map((n) => n.status)).toEqual(['matched', 'matched']);
+    expect(result[1].delta).toBe(40);
+  });
+  it('accepts an octave reading as the written note and flags it', () => {
+    const [result] = assess([pitched(0, 40)], [heard(0, 52)], 60, 0);
+    expect(result).toMatchObject({ status: 'matched', octave: true, heard: 52 });
+    expect(assess([pitched(0, 40)], [heard(0, 47)], 60, 0)[0].status).toBe('pitch');
+  });
+  it('lets an ungraded chord absorb its own attack', () => {
+    const targets = [pitched(0, 48, false), pitched(240, 60)];
+    const result = assess(targets, [heard(0, 43), heard(0.26, 60)], 60, 0);
+    expect(result.map((n) => n.status)).toEqual(['unclear', 'matched']);
+  });
+  it('uses explicit note times when the tempo changes inside the passage', () => {
+    const targets = [
+      { ...note(0), time: 0 },
+      { ...note(960), time: 0.5 },
+    ];
+    expect(assess(targets, [heard(0), heard(0.5)], 60, 0).map((n) => n.delta)).toEqual([0, 0]);
+  });
+});
+
+describe('placement against the beat', () => {
+  it('reports steady dragging separately from uneven timing and coaches it', () => {
+    const targets = Array.from({ length: 8 }, (_, i) => ({ ...note(i * 480), midi: 60 + (i % 3) }));
+    const jitter = [4, -6, 2, 0, -3, 5, -2, 1];
+    // 60 ms of device latency, and a player who sits 50 ms behind the band.
+    const played = targets.map((t, i) => heard(i * 0.25 + 0.11 + jitter[i] / 1000, t.midi));
+    const summary = summarize(assess(targets, played, 120, 0, 60));
+    expect(Math.abs(summary.placementMs! - 50)).toBeLessThan(2);
+    expect(summary.spreadMs).toBeLessThan(5);
+    const advice = coaching(take({ ...summary, latencySource: 'calibrated' }));
+    expect(advice).toMatchObject({ kind: 'timing', title: 'Lean into the beat.' });
+    expect(advice.body).toMatch(/5[01] ms behind/);
+    // Without a known latency the same numbers are not blamed on the player.
+    expect(coaching(take({ ...summary })).title).toBe('Find a steady landing.');
   });
 });

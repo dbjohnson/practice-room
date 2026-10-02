@@ -7,25 +7,25 @@ import { HelpDialog } from '../components/HelpDialog';
 import { PracticePage } from '../pages/PracticePage';
 import { LibraryPage } from '../pages/LibraryPage';
 import { JamPage } from '../pages/JamPage';
+import { GymPage } from '../pages/GymPage';
 import { ProgressPage } from '../pages/ProgressPage';
 
 export function App() {
   const r = useRoom();
   useEffect(() => {
-    document.body.dataset.concept = r.concept;
-  }, [r.concept]);
-  useEffect(() => {
     const handle = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement;
       if (
         event.code !== 'Space' ||
-        ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(target.tagName) ||
-        document.querySelector('dialog[open]') ||
+        event.defaultPrevented ||
+        target.closest('input, select, textarea') ||
+        target.isContentEditable ||
+        document.querySelector('dialog[open], [popover]:popover-open') ||
         r.page !== 'practice'
       )
         return;
       event.preventDefault();
-      r.play();
+      if (!event.repeat) r.play();
     };
     document.addEventListener('keydown', handle);
     return () => document.removeEventListener('keydown', handle);
@@ -33,10 +33,13 @@ export function App() {
   return (
     <>
       <Shell>
-        {r.page === 'practice' ? (
+        <div hidden={r.page !== 'practice'}>
           <PracticePage />
-        ) : r.page === 'library' ? (
+        </div>
+        {r.page === 'practice' ? null : r.page === 'library' ? (
           <LibraryPage />
+        ) : r.page === 'gym' ? (
+          <GymPage />
         ) : r.page === 'jam' ? (
           <JamPage />
         ) : r.page === 'instrument' ? (

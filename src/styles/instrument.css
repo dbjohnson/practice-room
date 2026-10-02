@@ -7,7 +7,7 @@
   align-items: center;
   gap: 17px;
   margin: 28px 0 23px;
-  color: #637e6c;
+  color: var(--secondary-fg, #637e6c);
 }
 .signal-route > span {
   display: flex;
@@ -21,24 +21,24 @@
 .signal-route > i {
   width: 34px;
   height: 1px;
-  background: #c5d1c3;
+  background: var(--surface-soft, #c5d1c3);
 }
 .route-caption {
   margin-left: auto;
   font-family: 'Fraunces Variable', serif;
   font-style: italic;
   font-size: 17px;
-  color: #899780;
+  color: var(--secondary-fg, #899780);
 }
 .feedback-warning {
   display: flex;
   align-items: flex-start;
   gap: 14px;
   padding: 18px 21px;
-  background: #f5ecd9;
-  border: 1px solid #e7d5b0;
+  background: var(--surface-soft, #f5ecd9);
+  border: 1px solid var(--theme-border, #e7d5b0);
   border-radius: 9px;
-  color: #856329;
+  color: var(--secondary-fg, #856329);
   margin-bottom: 25px;
 }
 .feedback-warning > svg {
@@ -51,7 +51,7 @@
 .feedback-warning p {
   font-size: 12px;
   line-height: 1.8;
-  color: #7c6a49;
+  color: var(--secondary-fg, #7c6a49);
   margin-top: 5px;
   max-width: 920px;
 }
@@ -63,7 +63,7 @@
 }
 .input-setup-card,
 .tuner-panel {
-  border: 1px solid #dce3d7;
+  border: 1px solid var(--theme-border, #dce3d7);
   background: var(--paper);
   border-radius: 11px;
   min-width: 0;
@@ -83,7 +83,7 @@
 }
 .setup-section-heading > svg {
   margin-left: auto;
-  color: #8ba184;
+  color: var(--secondary-fg, #8ba184);
 }
 .setup-number {
   display: grid;
@@ -91,9 +91,9 @@
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: #eaf0e4;
+  background: var(--surface-soft, #eaf0e4);
   font-size: 10px;
-  color: #6e8861;
+  color: var(--secondary-fg, #6e8861);
   font-weight: 650;
   flex-shrink: 0;
 }
@@ -101,7 +101,7 @@
 .audio-access p {
   font-size: 12px;
   line-height: 1.85;
-  color: #77836e;
+  color: var(--secondary-fg, #77836e);
   margin: 17px 0;
 }
 .audio-access {
@@ -109,13 +109,13 @@
 }
 .audio-access p {
   padding: 13px 15px;
-  background: #f0f3e9;
+  background: var(--surface-raised, #f0f3e9);
   border-radius: 6px;
   font-size: 11px;
 }
 .audio-access strong {
   font-weight: 620;
-  color: #627357;
+  color: var(--secondary-fg, #627357);
 }
 .audio-access .text-button {
   display: inline-flex;
@@ -124,7 +124,7 @@
 .setup-field {
   display: block;
   margin-top: 20px;
-  color: #63755b;
+  color: var(--secondary-fg, #63755b);
   font-size: 12px;
   font-weight: 550;
 }
@@ -133,12 +133,12 @@
   display: block;
   width: 100%;
   margin-top: 8px;
-  border: 1px solid #d6dfcc;
-  background: #fbfcf6;
+  border: 1px solid var(--theme-border, #d6dfcc);
+  background: var(--surface-raised, #fbfcf6);
   border-radius: 6px;
   padding: 11px 9px;
   font-size: 12px;
-  color: #334e3f;
+  color: var(--secondary-fg, #334e3f);
 }
 .device-refresh {
   display: flex;
@@ -152,7 +152,7 @@
   font-size: 10px;
   font-weight: 400;
   line-height: 1.7;
-  color: #7c8970;
+  color: var(--secondary-fg, #7c8970);
 }
 .device-refresh .text-button {
   font-size: 10px;
@@ -176,10 +176,10 @@
   gap: 6px;
   align-items: center;
   font-size: 12px;
-  color: #356b4e;
+  color: var(--secondary-fg, #356b4e);
 }
 .connection-help {
-  color: #72826a;
+  color: var(--secondary-fg, #72826a);
   font-size: 11px;
   margin-top: 21px;
   line-height: 1.8;
@@ -189,12 +189,12 @@
 }
 .connection-help p {
   margin-top: 9px;
-  color: #7a8771;
+  color: var(--secondary-fg, #7a8771);
 }
 .input-level-panel {
   padding: 23px 25px 22px;
-  background: #f2f5eb;
-  border-top: 1px solid #dde5d3;
+  background: var(--surface-raised, #f2f5eb);
+  border-top: 1px solid var(--theme-border, #dde5d3);
   border-radius: 0 0 11px 11px;
 }
 .level-readout {
@@ -206,24 +206,24 @@
 .level-readout > span:first-child {
   font-size: 9px;
   letter-spacing: 1px;
-  color: #6f8260;
+  color: var(--secondary-fg, #6f8260);
 }
 .level-readout > strong {
   font-size: 19px;
   font-weight: 550;
   margin-left: auto;
   font-variant-numeric: tabular-nums;
-  color: #4e6942;
+  color: var(--secondary-fg, #4e6942);
 }
 .level-readout small {
   font-size: 10px;
   font-weight: 400;
-  color: #89977d;
+  color: var(--secondary-fg, #89977d);
 }
 .clip-indicator {
-  border: 1px solid #ddded1;
-  background: #e8ebdf;
-  color: #a1a997;
+  border: 1px solid var(--theme-border, #ddded1);
+  background: var(--surface-soft, #e8ebdf);
+  color: var(--secondary-fg, #a1a997);
   font-size: 8px;
   font-weight: 700;
   padding: 4px 5px;
@@ -232,20 +232,20 @@
 .clip-indicator.active {
   color: white;
   background: #b84336;
-  border-color: #b84336;
+  border-color: var(--theme-border, #b84336);
 }
 .input-segments {
   display: flex;
   gap: 3px;
   height: 25px;
   padding: 4px;
-  background: #e0e7d8;
+  background: var(--surface-soft, #e0e7d8);
   border-radius: 4px;
 }
 .input-segments i {
   flex: 1;
   border-radius: 1px;
-  background: #d0d9c6;
+  background: var(--surface-soft, #d0d9c6);
 }
 .input-segments .green.lit {
   background: #709560;
@@ -261,7 +261,7 @@
   justify-content: space-between;
   padding: 7px 4px 0;
   font-size: 9px;
-  color: #8c9b7c;
+  color: var(--secondary-fg, #8c9b7c);
 }
 .level-advice {
   margin: 18px 0 12px;
@@ -273,29 +273,33 @@
   gap: 6px;
   font-size: 12px;
   font-weight: 600;
-  color: #537249;
+  color: var(--secondary-fg, #537249);
 }
 .level-advice p,
 .setup-hint {
   font-size: 11px;
   line-height: 1.8;
   margin-top: 6px;
-  color: #78876c;
+  color: var(--secondary-fg, #78876c);
 }
 .level-hot .level-advice strong {
-  color: #926b27;
+  color: var(--secondary-fg, #926b27);
 }
 .level-clip .level-advice strong {
-  color: #aa4335;
+  color: var(--danger-fg, #aa4335);
 }
 .setup-hint {
-  border-top: 1px solid #dee6d4;
+  border-top: 1px solid var(--theme-border, #dee6d4);
   padding-top: 12px;
   font-size: 10px;
 }
 .tuner-panel {
   padding: 24px 27px;
-  background: radial-gradient(ellipse at 50% 42%, #edf2e5 0, #fffefa 63%);
+  background: radial-gradient(
+    ellipse at 50% 42%,
+    var(--surface-soft, #edf2e5) 0,
+    var(--surface-raised, #fffefa) 63%
+  );
   display: flex;
   flex-direction: column;
 }
@@ -306,7 +310,7 @@
 }
 .tuner-controls label {
   flex: 1;
-  color: #6f8063;
+  color: var(--secondary-fg, #6f8063);
   font-size: 11px;
 }
 .tuner-controls label:last-child {
@@ -323,21 +327,21 @@
 .tuner-mode-label {
   font-size: 10px;
   letter-spacing: 2px;
-  color: #839477;
+  color: var(--secondary-fg, #839477);
 }
 .tuner-note {
   position: relative;
   font-family: 'Fraunces Variable', serif;
   font-size: 116px;
   line-height: 1.13;
-  color: #365e43;
+  color: var(--secondary-fg, #365e43);
   font-weight: 390;
   letter-spacing: -7px;
   margin: 7px 0 0;
   min-height: 131px;
 }
 .tuner-note.waiting {
-  color: #abb99e;
+  color: var(--secondary-fg, #abb99e);
 }
 .tuner-note sub {
   font-family: 'Manrope Variable', sans-serif;
@@ -355,13 +359,13 @@
   width: 29px;
   height: 29px;
   border-radius: 50%;
-  background: #e2edd9;
-  color: #487647;
+  background: var(--surface-soft, #e2edd9);
+  color: var(--secondary-fg, #487647);
 }
 .tuner-frequency {
   height: 20px;
   font-size: 11px;
-  color: #7e8c72;
+  color: var(--secondary-fg, #7e8c72);
   font-variant-numeric: tabular-nums;
   margin-top: 6px;
 }
@@ -374,28 +378,28 @@
   overflow: visible;
 }
 .dial-rail {
-  fill: #e3e8dc;
+  fill: var(--surface-soft);
 }
 .dial-target {
-  fill: #ccddb9;
+  fill: var(--accent-soft);
 }
 .dial-tick {
-  stroke: #afbda0;
+  stroke: var(--muted);
   stroke-width: 1;
 }
 .dial-center {
-  stroke: #618855;
+  stroke: var(--accent);
   stroke-width: 2;
 }
 .tuner-dial text {
-  fill: #859579;
+  fill: var(--notation-ink, #859579);
   font:
     13px 'Manrope Variable',
     sans-serif;
 }
 .dial-needle {
-  fill: #53794b;
-  stroke: #53794b;
+  fill: var(--accent);
+  stroke: var(--accent);
   stroke-width: 2;
   transition: transform 100ms ease-out;
 }
@@ -408,7 +412,7 @@
   align-items: center;
   padding: 0 7%;
   margin-top: 2px;
-  color: #8a977d;
+  color: var(--secondary-fg, #8a977d);
   font-size: 9px;
   letter-spacing: 1.2px;
 }
@@ -421,12 +425,12 @@
 .tuning-guidance {
   text-align: center;
   font-size: 13px;
-  color: #7c886e;
+  color: var(--secondary-fg, #7c886e);
   margin: 24px 0;
   min-height: 23px;
 }
 .tuning-guidance.tuned {
-  color: #3a794b;
+  color: var(--secondary-fg, #3a794b);
   font-weight: 650;
 }
 .tuner-strings {
@@ -439,22 +443,22 @@
   flex: 1;
   max-width: 64px;
   min-height: 57px;
-  background: #f4f5ed;
-  border: 1px solid #dfe4d6;
+  background: var(--surface-raised, #f4f5ed);
+  border: 1px solid var(--theme-border, #dfe4d6);
   border-radius: 7px;
-  color: #7b8f6d;
+  color: var(--secondary-fg, #7b8f6d);
   font-size: 11px;
 }
 .tuner-strings button.selected {
-  border-color: #a3b894;
-  background: #e9f0df;
-  color: #3f6840;
+  border-color: var(--theme-border, #a3b894);
+  background: var(--surface-soft, #e9f0df);
+  color: var(--secondary-fg, #3f6840);
   box-shadow: 0 0 0 1px #a3b89420;
 }
 .tuner-strings small {
   display: block;
   font-size: 9px;
-  color: #94a289;
+  color: var(--secondary-fg, #94a289);
   margin-bottom: 3px;
 }
 .tuner-strings strong {
@@ -469,7 +473,7 @@
 .tuner-footnote {
   text-align: center;
   font-size: 10px;
-  color: #819175;
+  color: var(--secondary-fg, #819175);
   line-height: 1.8;
   margin: 15px 0 0;
 }
@@ -484,7 +488,7 @@
   display: flex;
   gap: 9px;
   align-items: center;
-  color: #819075;
+  color: var(--secondary-fg, #819075);
   font-size: 11px;
   line-height: 1.7;
 }
@@ -564,4 +568,386 @@
   .setup-footer .button {
     justify-content: center;
   }
+}
+.input-gain {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  font-size: 12px;
+}
+.input-gain input {
+  flex: 1;
+  min-width: 60px;
+}
+.input-gain output {
+  min-width: 42px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.tuner-connection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 11px;
+}
+.compact-tuner :is(.setup-section-heading, .tuner-footnote, .setup-hint, .level-advice) {
+  display: none;
+}
+.compact-tuner :is(.tuner-panel, .input-level-panel) {
+  padding: 10px 0;
+  border: 0;
+  min-height: 0;
+}
+.compact-tuner .input-gain {
+  padding: 12px 0;
+}
+.compact-tuner .tuner-note-display {
+  padding: 8px 0;
+}
+.compact-tuner .tuner-note {
+  font-size: 42px;
+}
+.compact-tuner .tuner-dial svg {
+  max-height: 75px;
+}
+.compact-tuner .tuner-strings {
+  margin-top: 10px;
+}
+.practice-tool:has(.compact-tuner) .tool-content {
+  width: min(440px, 100%);
+}
+.compact-tuner {
+  padding: 14px;
+}
+.compact-tuner .tuner-controls {
+  margin-top: 0;
+  gap: 10px;
+}
+.compact-tuner .tuner-controls label {
+  min-width: 0;
+}
+.compact-tuner .tuner-controls label:last-child {
+  flex: 0 1 120px;
+}
+.compact-tuner .tuner-controls select {
+  width: 100%;
+  padding: 6px;
+}
+.compact-tuner .tuner-note-display {
+  margin: 6px 0 0;
+  padding: 0;
+}
+.compact-tuner .tuner-note {
+  min-height: 48px;
+  margin: 2px 0 0;
+  letter-spacing: -1px;
+}
+.compact-tuner .tuner-note sub {
+  font-size: 16px;
+  margin-left: 3px;
+}
+.compact-tuner .tuner-check {
+  width: 22px;
+  height: 22px;
+  top: 24%;
+  margin-left: 10px;
+}
+.compact-tuner .tuner-frequency {
+  margin-top: 0;
+}
+.compact-tuner .tuner-dial {
+  margin-top: 5px;
+}
+.compact-tuner .tuning-guidance {
+  margin: 8px 0;
+  min-height: 18px;
+  font-size: 11px;
+}
+.compact-tuner .tuner-strings {
+  gap: 4px;
+  margin-top: 0;
+}
+.compact-tuner .tuner-strings button {
+  min-width: 0;
+  min-height: 40px;
+  padding: 3px;
+}
+.compact-tuner .tuner-strings strong {
+  font-size: 15px;
+}
+.compact-tuner .tuner-strings small {
+  font-size: 8px;
+  margin: 0;
+}
+.compact-tuner .level-readout {
+  margin-top: 0;
+}
+.compact-tuner .input-level-panel {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+.compact-tuner .level-readout {
+  margin: 0;
+  gap: 6px;
+}
+.compact-tuner .level-readout > strong {
+  font-size: 13px;
+}
+.compact-tuner :is(.level-readout > span:first-child, .level-scale, .tuner-mode-label) {
+  display: none;
+}
+.compact-tuner .input-segments {
+  height: 18px;
+  gap: 2px;
+  padding: 3px;
+}
+.compact-tuner .tuner-controls {
+  padding-top: 6px;
+}
+.compact-tuner .tuner-panel {
+  background: transparent;
+}
+.compact-tuner .tuner-frequency {
+  height: 16px;
+  font-size: 10px;
+}
+[data-theme='dark'] .dial-rail {
+  fill: var(--border);
+}
+[data-theme='dark'] .dial-target {
+  fill: var(--accent);
+}
+[data-theme='dark'] .dial-needle {
+  fill: var(--accent);
+  stroke: var(--accent);
+}
+.latency-panel {
+  padding: 22px 25px;
+  border-top: 1px solid var(--border);
+}
+.latency-panel h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+}
+.latency-panel p {
+  font-size: 12px;
+  line-height: 1.7;
+  margin: 12px 0;
+}
+.latency-readout strong {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  font-size: 22px;
+  font-weight: 600;
+}
+.latency-readout small {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+/* Input setup uses denser controls than the music workspace. */
+.instrument-page {
+  max-width: 1080px;
+}
+.instrument-page .page-heading h1 {
+  font-size: 28px;
+  margin: 6px 0;
+}
+.instrument-page .page-heading p {
+  font-size: 12px;
+  margin-top: 6px;
+}
+.instrument-page .eyebrow {
+  font-size: 9px;
+}
+.instrument-page .signal-route {
+  margin: 16px 0;
+  gap: 12px;
+}
+.instrument-page .signal-route svg {
+  width: 16px;
+  height: 16px;
+}
+.instrument-page .signal-route strong {
+  font-size: 11px;
+}
+.instrument-page .route-caption {
+  font-size: 14px;
+}
+.instrument-page .feedback-warning {
+  padding: 11px 14px;
+  margin-bottom: 16px;
+  gap: 10px;
+}
+.instrument-page .feedback-warning p {
+  font-size: 11px;
+  line-height: 1.55;
+}
+.instrument-page .feedback-warning strong {
+  font-size: 12px;
+}
+.instrument-page .instrument-grid {
+  gap: 16px;
+  align-items: start;
+  grid-template-columns: minmax(300px, 1fr) minmax(320px, 1fr);
+}
+.instrument-page :is(.interface-connection, .input-level-panel, .tuner-panel, .latency-panel) {
+  padding: 16px;
+}
+.instrument-page .setup-number {
+  width: 22px;
+  height: 22px;
+  font-size: 9px;
+}
+.instrument-page .setup-section-heading h2 {
+  font-size: 14px;
+}
+.instrument-page :is(.setup-description, .audio-access p) {
+  margin: 10px 0;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.instrument-page :is(.setup-field, .connection-actions, .connection-help) {
+  margin-top: 12px;
+}
+.instrument-page .setup-field select {
+  padding: 8px;
+  margin-top: 5px;
+  font-size: 11px;
+}
+.instrument-page .input-gain {
+  padding: 10px 16px;
+  font-size: 11px;
+}
+.instrument-page .level-readout {
+  margin: 12px 0 8px;
+}
+.instrument-page .level-readout > strong {
+  font-size: 16px;
+}
+.instrument-page .input-segments {
+  height: 20px;
+}
+.instrument-page .level-advice {
+  min-height: 0;
+  margin: 10px 0;
+}
+.instrument-page .setup-hint {
+  padding-top: 8px;
+}
+.instrument-page .tuner-panel {
+  min-height: 0;
+}
+.instrument-page .tuner-controls {
+  margin-top: 12px;
+  gap: 10px;
+}
+.instrument-page .tuner-controls label {
+  min-width: 0;
+}
+.instrument-page .tuner-controls select {
+  padding: 7px;
+  margin-top: 5px;
+}
+.instrument-page .tuner-note-display {
+  margin: 14px 0 0;
+}
+.instrument-page .tuner-note {
+  font-size: 64px;
+  min-height: 74px;
+  letter-spacing: -3px;
+}
+.instrument-page .tuner-note sub {
+  font-size: 18px;
+  margin-left: 4px;
+}
+.instrument-page .tuner-check {
+  width: 23px;
+  height: 23px;
+  top: 34%;
+  margin-left: 12px;
+}
+.instrument-page .tuner-frequency {
+  font-size: 10px;
+  margin-top: 2px;
+}
+.instrument-page .tuner-dial {
+  margin-top: 8px;
+}
+.instrument-page .tuner-dial svg {
+  max-height: 86px;
+}
+.instrument-page .tuning-guidance {
+  margin: 10px 0;
+  min-height: 20px;
+  font-size: 12px;
+}
+.instrument-page .tuner-strings {
+  gap: 5px;
+  margin-top: 4px;
+}
+.instrument-page .tuner-strings button {
+  min-height: 44px;
+  min-width: 0;
+}
+.instrument-page .tuner-strings strong {
+  font-size: 16px;
+}
+.instrument-page .tuner-footnote {
+  margin-top: 10px;
+  line-height: 1.6;
+}
+.instrument-page .button {
+  padding: 8px 12px;
+  font-size: 11px;
+}
+@media (max-width: 850px) {
+  .instrument-page .instrument-grid {
+    grid-template-columns: 1fr;
+  }
+  .instrument-page .page-heading h1 {
+    font-size: 25px;
+  }
+}
+.instrument-page .tuner-note {
+  font-size: 58px;
+  min-height: 65px;
+}
+.instrument-page .tuner-note-display {
+  margin-top: 8px;
+}
+.instrument-page .tuner-dial svg {
+  max-height: 68px;
+}
+.instrument-page .tuner-controls {
+  margin-top: 8px;
+}
+.instrument-page .tuner-footnote {
+  font-size: 9px;
+  line-height: 1.5;
+}
+.instrument-page .tuning-guidance {
+  margin: 6px 0;
+}
+.compact-tuner {
+  padding: 10px 12px;
+}
+.compact-tuner .input-gain {
+  padding: 10px 0;
+}
+.compact-tuner .tuner-note {
+  min-height: 44px;
+  font-size: 40px;
+}
+.midi-panel {
+  padding: 23px 25px 22px;
+  border-top: 1px solid var(--border);
 }
