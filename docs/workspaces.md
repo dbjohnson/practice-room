@@ -67,7 +67,7 @@ ports. The app and assets require sign-in; `/health` is public. Only developers
 can reach build listings, proxied HTTP and HMR sockets. The gateway strips
 session/authorization headers before forwarding to Vite. It stores no Google
 access or refresh tokens. Browser sessions use opaque random cookies, hashed
-IDs persisted in the Git directory with private permissions, a 12-hour expiry,
+IDs persisted in the Git directory with private permissions, a seven-day expiry,
 and same-origin CSRF checks for sign-out. OAuth uses state, PKCE, nonce and ID
 token validation through `openid-client`. Pending logins expire after ten
 minutes and are lost on restart. Run one gateway process per repository.

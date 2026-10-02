@@ -1,9 +1,11 @@
 import { ArrowRight, Check, FlaskConical, Save, TriangleAlert } from 'lucide-react';
+import { GymReview } from './gym/GymReview';
 import { useRoom } from '../app/RoomContext';
 import { coaching } from '../audio/assessment';
 import { noteName } from '../music/jam';
 import { Modal } from './Modal';
 import { clampTempo } from '../time/timeline';
+import { DownloadRecording } from './RecordingControls';
 
 export function ReviewDialog() {
   const r = useRoom();
@@ -19,10 +21,14 @@ export function ReviewDialog() {
     >
       {take && advice && (
         <>
+          <GymReview take={take} />
           <div className="review-subtitle">
             <span>
               {take.pieceTitle} · {take.trackName} · measures {take.range.start}–{take.range.end} ·{' '}
               {take.tempo} BPM
+              {take.transpose
+                ? ` · transposed ${take.transpose > 0 ? '+' : ''}${take.transpose} semitones`
+                : ''}
             </span>
             <span className={`pill ${take.origin === 'example' ? 'pill-example' : ''}`}>
               {take.origin === 'example' ? (
@@ -40,26 +46,69 @@ export function ReviewDialog() {
               This take stopped early. Only notes reached during playback were considered.
             </p>
           )}
+          {r.takes.audio.processing && (
+            <p className="notice" role="status">
+              Preparing your audio recording…
+            </p>
+          )}
+          {take.audio && (
+            <div className="recording-controls">
+              <button
+                className="button button-primary"
+                disabled={r.preparingReplay}
+                onClick={() => void r.replayTake(take)}
+              >
+                Play take with score
+              </button>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={r.takePlayback.withBacking}
+                  onChange={(event) => r.takePlayback.setWithBacking(event.target.checked)}
+                />
+                Backing track
+              </label>
+              <DownloadRecording take={take} />
+            </div>
+          )}
           <div className="review-stats">
             <div>
-              <small>NOTES MATCHED</small>
+              <small>TAKE SCORE</small>
+              <strong>{take.overallScore == null ? '—' : `${take.overallScore}%`}</strong>
+              <span>50% notes + 50% timing</span>
+            </div>
+            <div>
+              <small>NOTES</small>
               <strong>{take.pitchAccuracy === null ? '—' : `${take.pitchAccuracy}%`}</strong>
-              <span>of assessable notes</span>
+              <span>correct notes / assessable notes</span>
             </div>
             <div>
-              <small>MEDIAN TIMING DISTANCE</small>
-              <strong>
-                {take.timingMs === null ? '—' : `${Math.round(take.timingMs)}`}
-                <em>{take.timingMs !== null && ' ms'}</em>
-              </strong>
-              <span>estimate · not calibrated</span>
+              <small>TIMING</small>
+              <strong>{take.timingScore == null ? '—' : `${take.timingScore}%`}</strong>
+              <span>
+                {take.timingMs === null
+                  ? 'No clear attacks'
+                  : `${Math.round(take.timingMs)} ms median offset`}
+              </span>
             </div>
             <div>
-              <small>ASSESSABLE NOTES</small>
+              <small>NOTE COVERAGE</small>
               <strong>{take.coverage}%</strong>
-              <span>unclear notes stay ungraded</span>
+              <span>
+                Timing evidence: {take.timingCoverage ?? take.coverage}% ·{' '}
+                {take.calibrated
+                  ? `calibrated · ${-(take.latencyMs ?? 0)} ms correction`
+                  : 'input not calibrated'}
+              </span>
             </div>
           </div>
+          <p className="muted-copy score-explanation">
+            Timing gets full credit within ±25 ms, falling to zero at ±150 ms. Missed notes score
+            zero for both. Timing uses detected attacks even when their pitch is unclear; missing
+            attacks score zero when other reliable attacks are present. Unclear pitch is excluded
+            from the note score. Takes below 60% note or timing coverage have no combined score.
+            Note offsets are negative when early and positive when late, after calibration.
+          </p>
           <div className="review-body">
             <div className="note-evidence">
               <div className="section-label">
@@ -69,7 +118,7 @@ export function ReviewDialog() {
                 {take.notes.slice(0, 80).map((note, i) => (
                   <div
                     key={i}
-                    className={`evidence-note note-${note.status}`}
+                    className={`evidence-note note-${note.status} ${note.delta !== null && Math.abs(note.delta) > 30 ? 'note-off-time' : ''}`}
                     title={`Bar ${note.bar}: expected ${noteName(note.midi)}; ${note.status}${note.delta !== null ? `; ${note.delta} ms` : ''}`}
                   >
                     <small>{note.bar}</small>
@@ -91,6 +140,12 @@ export function ReviewDialog() {
                         'unclear'
                       )}
                     </span>
+                    {note.delta !== null && (
+                      <span className="note-timing">
+                        {note.delta > 0 ? '+' : ''}
+                        {note.delta} ms
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
@@ -121,6 +176,7 @@ export function ReviewDialog() {
               <button
                 className="button button-primary"
                 onClick={() => {
+                  if (r.gym.run?.status === 'active') r.gym.pause();
                   r.takes.setReview(null);
                   if (advice.kind === 'input') {
                     r.setPage('instrument');
@@ -131,6 +187,7 @@ export function ReviewDialog() {
                     r.notify(`Open ${take.pieceTitle} to work on this passage.`);
                     return;
                   }
+                  if (r.transpose !== (take.transpose ?? 0)) r.setTranspose(take.transpose ?? 0);
                   r.setTempo(clampTempo(take.tempo + (advice.kind === 'advance' ? 4 : -8)));
                   const trouble =
                     take.notes.find(
@@ -162,17 +219,19 @@ export function ReviewDialog() {
             <span>
               {take.origin === 'example'
                 ? 'This example lets you explore the feedback design. It is not a recording of you and cannot earn progress.'
-                : 'This is a clean single-note prototype, not a validated music teacher. Chords, bends and ambiguous input remain ungraded. Timing includes unmeasured device latency.'}
+                : take.calibrated
+                  ? 'Single-note estimates use your input calibration. Chords, bends and ambiguous input remain ungraded.'
+                  : 'Single-note estimates include unmeasured device latency. Calibrate in Input settings to compensate. Chords, bends and ambiguous input remain ungraded.'}
             </span>
           </div>
           <div className="modal-actions">
             <button className="button button-quiet" onClick={() => r.takes.setReview(null)}>
               Back to the music
             </button>
-            {take.origin !== 'example' && (
+            {take.origin !== 'example' && !take.gym && (
               <button
                 className="button button-dark"
-                disabled={!!saved}
+                disabled={!!saved || r.takes.audio.processing}
                 onClick={() => r.takes.save(take)}
               >
                 {saved ? <Check size={16} /> : <Save size={16} />}

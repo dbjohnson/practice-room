@@ -1,28 +1,25 @@
 import {
   AudioLines,
+  Dumbbell,
   BookOpen,
-  ChevronRight,
   CircleHelp,
   Headphones,
   Library,
+  Menu,
   Music2,
-  Route,
-  Sparkles,
+  Moon,
+  Sun,
   TrendingUp,
-  Waves,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { useRoom } from '../app/RoomContext';
-import type { Concept, Page } from '../domain/types';
+import type { Page } from '../domain/types';
 import { AccountControls } from './AccountControls';
+import { useTheme } from '../app/useTheme';
 
-const concepts = [
-  { id: 'phrase' as Concept, name: 'Phrase', label: 'Learn the piece', Icon: Waves },
-  { id: 'trail' as Concept, name: 'Trail', label: 'Find your next step', Icon: Route },
-  { id: 'pocket' as Concept, name: 'Pocket', label: 'Play with the band', Icon: AudioLines },
-];
 const pages = [
-  { id: 'practice' as Page, name: 'Practice', Icon: BookOpen },
+  { id: 'practice' as Page, name: 'Music', Icon: BookOpen },
+  { id: 'gym' as Page, name: 'Practice gym', Icon: Dumbbell },
   { id: 'library' as Page, name: 'Your library', Icon: Library },
   { id: 'jam' as Page, name: 'Make a jam', Icon: Music2 },
   { id: 'progress' as Page, name: 'Your progress', Icon: TrendingUp },
@@ -31,51 +28,69 @@ const pages = [
 
 export function Shell({ children }: { children: ReactNode }) {
   const room = useRoom();
+  const menuId = useId();
+  const { theme, toggleTheme } = useTheme();
   return (
-    <div className={`app concept-${room.concept}`}>
-      <a className="skip-link" href="#main">
-        Skip to practice
+    <div className="app">
+      <a
+        className="skip-link"
+        href="#main"
+        onClick={(event) => {
+          event.preventDefault();
+          document.getElementById('main')?.focus();
+        }}
+      >
+        Skip to music
       </a>
-      <aside className="sidebar">
+      <header className="app-header">
         <button
           className="brand"
           onClick={() => room.setPage('practice')}
           aria-label="Practice Room home"
         >
-          <span className="brand-mark">
-            <AudioLines size={25} strokeWidth={1.7} />
-          </span>
-          <span>
-            practice<span className="brand-room">room.</span>
-          </span>
+          <AudioLines size={23} strokeWidth={1.5} />
+          <span>practice room.</span>
         </button>
-        <div className="sidebar-label">THREE WAYS TO PLAY</div>
-        <div className="concept-nav" aria-label="Design concept">
-          {concepts.map(({ id, name, label, Icon }) => (
-            <button
-              key={id}
-              className={`concept-button ${room.concept === id ? 'active' : ''}`}
-              onClick={() => room.setConcept(id)}
-              aria-pressed={room.concept === id}
-            >
-              <Icon size={21} strokeWidth={1.6} />
-              <span>
-                <strong>{name}</strong>
-                <small>{label}</small>
-              </span>
-              {room.concept === id && <span className="concept-dot" />}
-            </button>
-          ))}
+        <button className="navigation-toggle" popoverTarget={menuId} aria-label="Open navigation">
+          <Menu size={18} />
+          <span>{pages.find((page) => page.id === room.page)?.name}</span>
+        </button>
+        <div className="header-actions">
+          <button
+            className="icon-button"
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
+            onClick={toggleTheme}
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+          <button
+            className={`input-connect ${room.input.status.state === 'ready' ? 'connected' : ''}`}
+            aria-label="Instrument & tuner"
+            onClick={() => room.setPage('instrument')}
+          >
+            <span className="status-dot" />
+            <Headphones size={16} />
+            <span className="input-label">
+              {room.input.status.state === 'ready' ? 'Connected' : 'Instrument'}
+            </span>
+          </button>
+          <button className="icon-button" aria-label="Help" onClick={() => room.setHelpOpen(true)}>
+            <CircleHelp size={18} />
+          </button>
         </div>
-        <div className="sidebar-divider" />
-        <div className="sidebar-label">YOUR ROOM</div>
-        <nav>
+      </header>
+      <div id={menuId} popover="auto" className="navigation-menu">
+        <nav aria-label="Main navigation">
           {pages.map(({ id, name, Icon }) => (
             <button
               key={id}
               className={`nav-link ${room.page === id ? 'active' : ''}`}
-              onClick={() => room.setPage(id)}
               aria-current={room.page === id ? 'page' : undefined}
+              onClick={() => {
+                room.setPage(id);
+                document.getElementById(menuId)?.hidePopover();
+              }}
             >
               <Icon size={18} strokeWidth={1.6} />
               {name}
@@ -83,56 +98,11 @@ export function Shell({ children }: { children: ReactNode }) {
             </button>
           ))}
         </nav>
-        <div className="sidebar-bottom">
-          <div className="daily-note">
-            <Sparkles size={17} />
-            <p>
-              A little more music.
-              <br />
-              <em>Every day.</em>
-            </p>
-          </div>
-          <button className="sidebar-help" onClick={() => room.setHelpOpen(true)}>
-            <CircleHelp size={16} />
-            About this prototype <ChevronRight size={14} />
-          </button>
-          <span className="local-note">
-            <span /> Saved on this device
-          </span>
-        </div>
-      </aside>
-      <div className="app-body">
-        <header className="topbar">
-          <div className="breadcrumbs">
-            <span>Your room</span>
-            <ChevronRight size={13} />
-            <strong>{pages.find((p) => p.id === room.page)?.name}</strong>
-          </div>
-          <div className="topbar-actions">
-            <span className="prototype-badge">
-              DESIGN LAB <span>01</span>
-            </span>
-            <button
-              className={`input-connect ${room.input.status.state === 'ready' ? 'connected' : ''}`}
-              onClick={() => room.setPage('instrument')}
-            >
-              <span className="status-dot" />
-              <Headphones size={16} />
-              <span>
-                {room.input.status.state === 'ready'
-                  ? 'Instrument connected'
-                  : 'Connect instrument'}
-              </span>
-            </button>
-          </div>
-        </header>
         <AccountControls />
-        <main id="main">{children}</main>
-        <footer className="app-footer">
-          <span>Made for the part you can’t quite play. Yet.</span>
-          <span>PHRASE · TRAIL · POCKET</span>
-        </footer>
       </div>
+      <main id="main" tabIndex={-1} className={room.page === 'practice' ? 'music-main' : undefined}>
+        {children}
+      </main>
       {room.toast && (
         <div className="toast" role="status">
           {room.toast}

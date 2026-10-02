@@ -45,7 +45,7 @@ export function JamPage() {
         </div>
         <span className="pill">
           <AudioLines size={14} />
-          {r.concept === 'pocket' ? 'Pocket’s home ground' : 'Shared with every workspace'}
+          Create a backing track
         </span>
       </div>
       <div className="jam-composer">

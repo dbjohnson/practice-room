@@ -1,38 +1,51 @@
-import { LoaderCircle, Music2 } from 'lucide-react';
+import { LoaderCircle } from 'lucide-react';
 import { useRoom } from '../app/RoomContext';
 import { useScorePlayer } from '../audio/useScorePlayer';
+import { TakeWaveform } from './TakeWaveform';
 
 export function ScoreCanvas() {
   const r = useRoom();
   const host = useScorePlayer({
     score: r.library.score,
+    exerciseArticulation: r.library.piece.gymSet?.articulation,
+    recipe: r.library.piece.source === 'import' ? undefined : r.library.piece.recipe,
     track: r.track,
     tempo: r.tempo,
     range: r.range,
     loop: r.loop,
     view: r.view,
+    zoom: r.zoom,
     mode: r.mode,
     click: r.click,
     countIn: r.countIn,
     muted: r.muted,
     volumes: r.volumes,
-    onStatus: r.updatePlayer,
+    effects: r.mixEffects,
+    swing: r.swing,
+    replaying: r.takePlayback.active,
+    replayBacking: r.takePlayback.withBacking,
+    externalClock: r.exerciseLoop.active,
+    onStatus: (status) => {
+      if (r.exerciseLoop.active && (status.playing !== undefined || status.tick !== undefined))
+        return;
+      r.updatePlayer(status);
+      if (status.playing === false) r.takePlayback.pauseAudio();
+    },
     onReady: r.setApi,
-    onFinish: () => r.takes.finish(true),
-    onPosition: r.takes.onPosition,
+    onFinish: () => {
+      if (r.exerciseLoop.active) return;
+      r.gymActivity.finish();
+      r.takes.finish(true);
+      r.takePlayback.stop(false);
+    },
+    onPosition: (tick, bpm) => {
+      if (r.exerciseLoop.active) return;
+      r.takes.onPosition(tick, bpm);
+      r.takePlayback.onPosition(tick);
+    },
   });
   return (
     <div className="score-paper" aria-label="Interactive sheet music and tablature">
-      <div className="score-caption">
-        <span>
-          <Music2 size={14} />
-          {r.library.score.tracks[r.track]?.name ?? 'Selected part'}
-        </span>
-        <span>
-          {r.library.piece.key} <b>·</b> {r.tempo} BPM <b>·</b> Select a passage with the measure
-          controls
-        </span>
-      </div>
       {r.player.rendering && (
         <div className="score-loading">
           <LoaderCircle size={18} className="spin" />
@@ -44,7 +57,10 @@ export function ScoreCanvas() {
           {r.player.error}
         </div>
       )}
-      <div ref={host} className="notation-host" />
+      <div className="score-content">
+        <div ref={host} className="notation-host" />
+        <TakeWaveform />
+      </div>
     </div>
   );
 }

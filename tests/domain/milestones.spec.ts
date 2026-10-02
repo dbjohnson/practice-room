@@ -12,6 +12,8 @@ const take: Take = {
   notes: [],
   pitchAccuracy: 95,
   timingMs: 20,
+  timingScore: 95,
+  overallScore: 95,
   coverage: 95,
   duration: 8,
   calibrated: false,
@@ -31,8 +33,11 @@ it('earns milestones from comparable real takes, never illustrative or partial o
   ).toEqual([true, true, true]);
   for (const difference of [
     { tempo: 84 },
+    { transpose: 3 },
     { trackName: 'Guitar' },
     { coverage: 20 },
+    { timingCoverage: 20 },
+    { timingScore: 40 },
     { interrupted: true },
     { range: { start: 2, end: 3 } },
   ]) {

@@ -10,6 +10,7 @@ const track = {
 const stream = { getTracks: () => [track], getAudioTracks: () => [track] };
 const source = { connect: vi.fn(), disconnect: vi.fn() };
 const splitter = { connect: vi.fn(), disconnect: vi.fn() };
+const gain = { gain: { setTargetAtTime: vi.fn() }, connect: vi.fn(), disconnect: vi.fn() };
 const analyser = { fftSize: 0, smoothingTimeConstant: 1, disconnect: vi.fn() };
 const context = {
   state: 'running',
@@ -18,6 +19,8 @@ const context = {
   destination: {},
   createMediaStreamSource: vi.fn(() => source),
   createChannelSplitter: vi.fn(() => splitter),
+  createGain: vi.fn(() => gain),
+  currentTime: 1,
   createAnalyser: vi.fn(() => analyser),
 };
 const getUserMedia = vi.fn();
@@ -55,9 +58,13 @@ describe('audio interface capture', () => {
     });
     expect(capture.channelCount).toBe(2);
     expect(source.connect).toHaveBeenCalledWith(splitter);
-    expect(splitter.connect).toHaveBeenCalledWith(analyser, 0);
+    expect(splitter.connect).toHaveBeenCalledWith(gain, 0);
+    expect(gain.connect).toHaveBeenCalledWith(analyser);
     capture.selectChannel(1);
-    expect(splitter.connect).toHaveBeenLastCalledWith(analyser, 1);
+    expect(splitter.connect).toHaveBeenLastCalledWith(gain, 1);
+    capture.setGain(-6);
+    expect(gain.gain.setTargetAtTime).toHaveBeenCalledWith(10 ** (-6 / 20), 1, 0.015);
+    expect(gain.connect).not.toHaveBeenCalledWith(context.destination);
     expect(source.connect).not.toHaveBeenCalledWith(context.destination);
     expect(splitter.connect).not.toHaveBeenCalledWith(context.destination);
     expect(() => capture.selectChannel(2)).toThrow('available input');

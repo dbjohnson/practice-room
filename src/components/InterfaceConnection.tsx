@@ -51,7 +51,7 @@ export function InterfaceConnection() {
             Audio interface
             <select
               aria-label="Audio interface"
-              value={available ? selected : ''}
+              value={ready ? status.deviceId : available ? selected : ''}
               disabled={connecting || loading}
               onChange={(event) => {
                 r.halt();

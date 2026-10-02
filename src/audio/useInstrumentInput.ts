@@ -6,6 +6,15 @@ import { measureInput } from './inputLevels';
 import { OnsetTracker } from './onsets';
 import { estimatePitch } from './pitch';
 import { StablePitch } from './tuner';
+import { useInputCalibration } from './useInputCalibration';
+import { recordInstrument } from './recordInstrument';
+import { readLocal, writeLocal } from '../storage/library';
+
+interface RememberedInput {
+  deviceId: string;
+  channel: number;
+}
+const rememberedInput = () => readLocal<RememberedInput | null>('input-connection', null);
 
 const initial: InputStatus = {
   state: 'off',
@@ -24,6 +33,11 @@ type Capture = Awaited<ReturnType<typeof openInstrumentCapture>>;
 
 export function useInstrumentInput(onObservation: (observation: Observation) => void) {
   const [status, setStatus] = useState<InputStatus>(initial);
+  const [gain, setGainState] = useState(() => {
+    const saved = readLocal<number>('input-gain', 0);
+    return Number.isFinite(saved) ? Math.max(-24, Math.min(12, saved)) : 0;
+  });
+  const gainRef = useRef(gain);
   const latest = useRef(onObservation);
   latest.current = onObservation;
   const resources = useRef<{
@@ -45,12 +59,13 @@ export function useInstrumentInput(onObservation: (observation: Observation) => 
     }
   }, []);
   const stop = useCallback(() => {
+    writeLocal('input-connection', null);
     generation.current++;
     release();
     setStatus(initial);
   }, [release]);
   const start = useCallback(
-    async (deviceId: string) => {
+    async (deviceId: string, preferredChannel = 0) => {
       const token = ++generation.current;
       release();
       setStatus({ ...initial, state: 'connecting' });
@@ -80,6 +95,10 @@ export function useInstrumentInput(onObservation: (observation: Observation) => 
           ended,
         };
         resources.current = current;
+        const channel = Math.max(0, Math.min(capture.channelCount - 1, preferredChannel));
+        capture.selectChannel(channel);
+        capture.setGain(gainRef.current);
+        writeLocal('input-connection', { deviceId: capture.deviceId, channel });
         const buffer = new Float32Array(capture.analyser.fftSize);
         setStatus({
           ...initial,
@@ -87,7 +106,9 @@ export function useInstrumentInput(onObservation: (observation: Observation) => 
           deviceId: capture.deviceId,
           deviceLabel: capture.label,
           channelCount: capture.channelCount,
+          channel,
         });
+        let lastMeterUpdate = -Infinity;
         current.timer = window.setInterval(() => {
           capture.analyser.getFloatTimeDomainData(buffer);
           const pitch = estimatePitch(buffer, capture.context.sampleRate);
@@ -101,6 +122,8 @@ export function useInstrumentInput(onObservation: (observation: Observation) => 
           );
           if (observation) latest.current(observation);
           const tunerMidi = current.stable.update(pitch, clipped);
+          if (now - lastMeterUpdate < 0.1) return;
+          lastMeterUpdate = now;
           setStatus((previous) => ({
             ...previous,
             peakDb: levels.peakDb,
@@ -121,6 +144,7 @@ export function useInstrumentInput(onObservation: (observation: Observation) => 
     const current = resources.current;
     if (!current) return;
     current.capture.selectChannel(channel);
+    writeLocal('input-connection', { deviceId: current.capture.deviceId, channel });
     current.tracker = new OnsetTracker();
     current.stable = new StablePitch();
     current.clipUntil = 0;
@@ -134,12 +158,44 @@ export function useInstrumentInput(onObservation: (observation: Observation) => 
       confidence: 0,
     }));
   }, []);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    let cancelled = false;
+    const token = generation.current;
+    const saved = rememberedInput();
+    if (saved && typeof saved.deviceId === 'string' && Number.isInteger(saved.channel)) {
+      void (async () => {
+        let granted: boolean;
+        try {
+          granted =
+            (await navigator.permissions.query({ name: 'microphone' as PermissionName })).state ===
+            'granted';
+        } catch {
+          const devices = await navigator.mediaDevices?.enumerateDevices();
+          granted = !!devices?.some((device) => device.deviceId === saved.deviceId && device.label);
+        }
+        if (granted && !cancelled && token === generation.current)
+          await start(saved.deviceId, saved.channel);
+      })().catch(() => {});
+    }
+    return () => {
+      cancelled = true;
       generation.current++;
       release();
-    },
-    [release],
-  );
-  return { status, start, stop, selectChannel };
+    };
+  }, [release, start]);
+  const record = useCallback((onPeak: (peak: number) => void) => {
+    const capture = resources.current?.capture;
+    if (!capture) throw new Error('Connect your audio interface before recording.');
+    return recordInstrument(capture.context, capture.analyser, onPeak);
+  }, []);
+  const setGain = (db: number) => {
+    if (!Number.isFinite(db)) return;
+    const value = Math.max(-24, Math.min(12, db));
+    gainRef.current = value;
+    resources.current?.capture.setGain(value);
+    setGainState(value);
+    writeLocal('input-gain', value);
+  };
+  const calibration = useInputCalibration(resources, status.channel);
+  return { status, start, stop, selectChannel, record, gain, setGain, ...calibration };
 }

@@ -1,12 +1,17 @@
 import { useCallback, useRef, useState } from 'react';
+import type { GymTakeContext } from '../domain/gym';
 import type { AlphaTabApi, model } from '@coderline/alphatab';
 import type { LoopRange, Observation, Piece, Take } from '../domain/types';
 import { assess, exampleNotes, summarize } from '../audio/assessment';
+import { analyseRecordedTake } from '../audio/recordedAssessment';
 import { expectedNotes, playbackRange } from '../music/scoreTimeline';
 import { loadTakes, writeLocal } from '../storage/library';
 import { ticksToSeconds } from '../time/timeline';
+import { useTakeAudio, type RecordAudio } from './useTakeAudio';
 
 interface TakeOptions {
+  gym?: GymTakeContext;
+  onGymTake?: (take: Take) => void;
   piece: Piece;
   score: model.Score;
   track: number;
@@ -14,6 +19,10 @@ interface TakeOptions {
   range: LoopRange;
   api: React.RefObject<AlphaTabApi | null>;
   notify: (s: string) => void;
+  recordAudio?: React.RefObject<RecordAudio | null>;
+  swing?: number | null;
+  transpose?: number;
+  inputLatency?: React.RefObject<number | null>;
 }
 export function useTakes(options: TakeOptions) {
   const latest = useRef(options);
@@ -21,26 +30,41 @@ export function useTakes(options: TakeOptions) {
   const [takes, setTakes] = useState<Take[]>(loadTakes);
   const [review, setReview] = useState<Take | null>(null);
   const [recording, setRecording] = useState(false);
+  const [passResult, setPassResult] = useState<Take | null>(null);
+  const audio = useTakeAudio(options.notify);
+  const latestAudio = useRef(audio);
+  latestAudio.current = audio;
   const capture = useRef<{
     observations: Observation[];
     started: number;
     origin: number | null;
     startTick: number;
+    endTick: number;
     options: TakeOptions;
+    latencyMs: number | null;
+    looping: boolean;
+    record: boolean;
+    pass: number;
   } | null>(null);
   const lastTick = useRef<number | null>(null);
-  const onPosition = useCallback((tick: number, bpm: number) => {
+  const onPosition = useCallback((tick: number, bpm: number, origin?: number) => {
     const take = capture.current;
     if (!take || tick < take.startTick) return;
     lastTick.current = tick;
+    if (origin !== undefined) take.origin = origin;
     if (take.origin === null)
       take.origin = performance.now() / 1000 - ticksToSeconds(tick - take.startTick, bpm);
+    latestAudio.current.position(tick, performance.now() / 1000 - take.origin, take.startTick);
   }, []);
   const onObservation = useCallback((observation: Observation) => {
     const take = capture.current;
     // Input can arrive before the first playback position. Keep absolute timestamps
     // until review so delayed pitch detection cannot pull count-in audio into the take.
-    if (take && observation.time >= take.started) take.observations.push(observation);
+    if (take && observation.time >= take.started)
+      take.observations.push({
+        ...observation,
+        time: observation.time - (take.latencyMs ?? 0) / 1000,
+      });
   }, []);
   const make = (
     origin: Take['origin'],
@@ -54,22 +78,47 @@ export function useTakes(options: TakeOptions) {
     pieceTitle: settings.piece.title,
     trackName: settings.score.tracks[settings.track]?.name ?? 'Selected part',
     tempo: settings.tempo,
+    transpose: settings.gym ? 0 : (settings.transpose ?? 0),
     range: { ...settings.range },
     origin,
     notes,
     ...summarize(notes),
     duration,
     calibrated: false,
-    rubric: 'mono-v1',
+    rubric: 'mono-v3',
+    gym: origin === 'microphone' ? settings.gym : undefined,
   });
-  const finish = useCallback((completed = false) => {
+  const finish = useCallback((completed = false, boundary?: number) => {
     const captured = capture.current;
     if (!captured) return;
-    capture.current = null;
-    setRecording(false);
+    if (boundary === undefined) {
+      capture.current = null;
+      setRecording(false);
+    } else {
+      capture.current = {
+        ...captured,
+        observations: captured.observations.filter((o) => o.time >= boundary),
+        origin: boundary,
+        pass: captured.pass + 1,
+      };
+      lastTick.current = captured.startTick;
+    }
     const opts = captured.options;
-    const ended = performance.now() / 1000;
+    const ended = boundary ?? performance.now() / 1000;
     const origin = captured.origin;
+    if (completed && origin !== null)
+      latestAudio.current.position(captured.endTick, ended - origin, captured.startTick);
+    // Stopping just after a wrap must keep the completed pass visible. Still
+    // release the continuous recorder, without retaining an empty extra take.
+    if (
+      boundary === undefined &&
+      captured.looping &&
+      captured.pass > 1 &&
+      (origin === null || ended - origin < 0.1)
+    ) {
+      void latestAudio.current.finish(make('microphone', opts, [], 0), null, ended);
+      return;
+    }
     const playedUntil =
       origin === null
         ? captured.startTick - 1
@@ -89,27 +138,91 @@ export function useTakes(options: TakeOptions) {
     const result = {
       ...make('microphone', opts, notes, origin === null ? 0 : Math.max(0, ended - origin)),
       interrupted: !completed || origin === null,
+      calibrated: captured.latencyMs !== null,
+      latencyMs: captured.latencyMs ?? undefined,
+      ...(captured.looping ? { pass: captured.pass } : {}),
     };
-    setReview(result);
-    // Saving is explicit in the review. Unclear or interrupted takes never alter progress automatically.
+    if (captured.looping) {
+      if (completed || captured.pass === 1) setPassResult(result);
+    } else if (!captured.record || opts.gym) setPassResult(result);
+    else setReview(result);
+    if (!captured.record) return;
+    const correction = (captured.latencyMs ?? 0) / 1000;
+    const finalize =
+      boundary !== undefined ? latestAudio.current.snapshot : latestAudio.current.finish;
+    void finalize(
+      result,
+      origin === null ? null : origin + correction,
+      ended + correction,
+      async (blob) => {
+        // The WAV was already shifted by the saved offset. Never subtract it a second time.
+        const recorded = await analyseRecordedTake(blob);
+        const notes = assess(expected, recorded, opts.tempo, captured.startTick);
+        return { ...result, notes, ...summarize(notes) };
+      },
+    ).then(async (withAudio) => {
+      if (withAudio.gym || captured.looping) {
+        if (withAudio.audio) {
+          try {
+            await latestAudio.current.save(withAudio);
+          } catch {
+            opts.notify(
+              'The result is saved without audio because recording storage is unavailable.',
+            );
+            withAudio = { ...withAudio, audio: undefined };
+          }
+        }
+        setTakes((current) => {
+          const next = [withAudio, ...current.filter((t) => t.id !== withAudio.id)].slice(0, 200);
+          if (!writeLocal('takes', next))
+            opts.notify(
+              'Recent take details could not be saved. Gym metrics are stored separately.',
+            );
+          return next;
+        });
+        if (withAudio.gym) latest.current.onGymTake?.(withAudio);
+      }
+      setReview((current) => (current?.id === result.id ? withAudio : current));
+      setPassResult((current) => (current?.id === result.id ? withAudio : current));
+    });
+    // Gym attempts retain every result; record eligibility is handled by the gym ledger.
   }, []);
-  const begin = () => {
-    if (capture.current) return false;
+  const begin = (record = true, looping = false) => {
+    if (capture.current || audio.processing) return false;
     const opts = latest.current;
     const api = opts.api.current;
     if (!api?.isReadyForPlayback) return false;
     const range = playbackRange(api, opts.score, opts.range);
     if (!range) return false;
+    try {
+      if (record)
+        audio.begin(
+          opts.recordAudio?.current ?? undefined,
+          opts.piece.id,
+          opts.track,
+          opts.swing ?? null,
+        );
+    } catch (error) {
+      opts.notify(error instanceof Error ? error.message : 'Could not start recording.');
+      return false;
+    }
     api.stop();
     capture.current = {
       observations: [],
       started: performance.now() / 1000,
       origin: null,
       startTick: range.startTick,
+      endTick: range.endTick,
       options: { ...opts, range: { ...opts.range } },
+      latencyMs: opts.inputLatency?.current ?? null,
+      looping,
+      record,
+      pass: 1,
     };
     lastTick.current = null;
-    setRecording(true);
+    setPassResult(null);
+    setReview(null);
+    setRecording(record);
     api.tickPosition = range.startTick;
     return true;
   };
@@ -120,10 +233,20 @@ export function useTakes(options: TakeOptions) {
       make('example', opts, notes, ((opts.range.end - opts.range.start + 1) * 4 * 60) / opts.tempo),
     );
   };
-  const save = (take: Take) => {
+  const save = async (take: Take) => {
     if (take.origin === 'example') {
       options.notify('Example takes are for exploring feedback. They do not change your progress.');
       return;
+    }
+    if (take.audio) {
+      try {
+        await audio.save(take);
+      } catch {
+        options.notify(
+          'The recording could not be saved. Free some browser storage and try again.',
+        );
+        return;
+      }
     }
     setTakes((current) => {
       const next = [take, ...current.filter((t) => t.id !== take.id)].slice(0, 200);
@@ -136,6 +259,7 @@ export function useTakes(options: TakeOptions) {
   const clear = () => {
     setTakes([]);
     writeLocal('takes', []);
+    audio.clear();
     options.notify('Practice history cleared on this device.');
   };
   return {
@@ -143,12 +267,15 @@ export function useTakes(options: TakeOptions) {
     review,
     setReview,
     recording,
+    passResult,
     begin,
+    finishPass: (ended?: number) => finish(true, ended ?? performance.now() / 1000),
     finish,
     onPosition,
     onObservation,
     showExample,
     save,
     clear,
+    audio,
   };
 }

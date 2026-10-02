@@ -3,11 +3,15 @@ import { useRoom } from '../app/RoomContext';
 
 export function Mixer() {
   const r = useRoom();
+  const locked = r.takes.recording || r.exerciseLoop.active || r.exerciseLoop.preparing;
   return (
     <section className="mixer">
       <div className="section-label">
         <AudioLines size={15} />
         YOUR BACKING BAND <span>Sampled sounds</span>
+        <button className="text-button" disabled={locked} onClick={() => r.setVolumes({})}>
+          Reset levels
+        </button>
       </div>
       <div className="mixer-tracks">
         {r.library.score.tracks.map((track) => {
@@ -34,7 +38,7 @@ export function Mixer() {
                   max={100}
                   aria-label={`${track.name} volume`}
                   value={r.volumes[track.index] ?? 80}
-                  disabled={r.takes.recording}
+                  disabled={locked}
                   onChange={(e) =>
                     r.setVolumes({ ...r.volumes, [track.index]: Number(e.target.value) })
                   }
@@ -44,7 +48,7 @@ export function Mixer() {
                 className="icon-button"
                 aria-label={`${muted ? 'Unmute' : 'Mute'} ${track.name}`}
                 aria-pressed={muted}
-                disabled={r.takes.recording || (r.mode !== 'listen' && r.track === track.index)}
+                disabled={locked || (r.mode !== 'listen' && r.track === track.index)}
                 onClick={() =>
                   r.setMuted(
                     r.muted.includes(track.index)
@@ -59,6 +63,9 @@ export function Mixer() {
           );
         })}
       </div>
+      {(r.exerciseLoop.active || r.exerciseLoop.preparing) && (
+        <small>Stop the loop to adjust levels.</small>
+      )}
     </section>
   );
 }

@@ -6,10 +6,10 @@ import './styles.css';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { App } from './app/App';
 import { RoomProvider } from './app/RoomProvider';
-import { initializeWorkspace } from './workspace/client';
+import { initializeSession } from './app/initializeSession';
 
 async function start() {
-  await initializeWorkspace();
+  await initializeSession();
   createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <ErrorBoundary>

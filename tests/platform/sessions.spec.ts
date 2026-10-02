@@ -17,8 +17,12 @@ describe('gateway sessions', () => {
       expect(statSync(path).mode & 0o777).toBe(0o600);
       expect(new Sessions(path, () => now).get(id)?.user).toEqual(user);
       expect(store.get(id + 'tampered')).toBeNull();
-      now += 12 * 3600_000;
+      now += 7 * 24 * 3600_000 - 1;
+      expect(store.get(id)?.user).toEqual(user);
+      expect(new Sessions(path, () => now).get(id)?.user).toEqual(user);
+      now += 1;
       expect(store.get(id)).toBeNull();
+      expect(new Sessions(path, () => now).get(id)).toBeNull();
       const next = store.create(user);
       store.remove(next);
       expect(new Sessions(path, () => now).get(next)).toBeNull();

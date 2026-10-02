@@ -43,6 +43,7 @@ describe('Google-protected app gateway', () => {
     expect(signed.answer.status).toBe(302);
     expect(signed.answer.headers.get('location')).toBe('/dev/use/my-build');
     expect(signed.answer.headers.get('set-cookie')).toContain('HttpOnly');
+    expect(signed.answer.headers.get('set-cookie')).toContain('Max-Age=604800');
     expect(signed.answer.headers.get('set-cookie')).toContain('SameSite=Lax');
     expect(
       (await fixture.request(signed.callback, { headers: { cookie: signed.login } })).status,

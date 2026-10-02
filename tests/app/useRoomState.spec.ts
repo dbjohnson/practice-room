@@ -6,6 +6,9 @@ import { openInstrumentCapture } from '../../src/audio/instrumentCapture';
 import { takeFixture } from './takeFixture';
 
 vi.mock('../../src/audio/instrumentCapture', () => ({ openInstrumentCapture: vi.fn() }));
+vi.mock('../../src/audio/recordInstrument', () => ({
+  recordInstrument: vi.fn(() => ({ finish: vi.fn(async () => null) })),
+}));
 
 declare const jsdom: { window: Window };
 let now = 0;
@@ -31,6 +34,8 @@ function captureFixture() {
     deviceId: 'test-interface',
     label: 'Test interface',
     channelCount: 2,
+    selectChannel: vi.fn(),
+    setGain: vi.fn(),
     close: vi.fn(),
   };
   vi.mocked(openInstrumentCapture).mockResolvedValue(
@@ -87,6 +92,8 @@ describe('recording with an audio interface', () => {
       notes: started ? [{ status: 'matched' }] : [],
     });
     expect(result.current.takes.takes).toEqual([]);
+    // localStorage persistence dispatches its browser storage event asynchronously.
+    act(() => vi.runOnlyPendingTimers());
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -127,6 +134,36 @@ describe('recording with an audio interface', () => {
     expect(result.current.page).toBe('library');
     unmount();
     expect(capture.close).toHaveBeenCalledTimes(1);
+    // localStorage persistence dispatches its browser storage event asynchronously.
+    act(() => vi.runOnlyPendingTimers());
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('key transposition state', () => {
+  it('always transposes the source, preserves swing, and resets when changing songs', async () => {
+    const { result } = renderHook(useRoomState);
+    const source = result.current.library.score;
+    const pitch = () =>
+      result.current.library.score.tracks[0].staves[0].bars[0].voices[0].beats[0].notes[0]
+        .realValue;
+    const original = pitch();
+    act(() => {
+      result.current.setSwing(70);
+      result.current.setTranspose(1);
+    });
+    expect(pitch()).toBe(original + 1);
+    act(() => result.current.setTranspose(3));
+    expect(pitch()).toBe(original + 3);
+    expect(result.current.swing).toBe(70);
+    act(() => result.current.takes.showExample());
+    expect(result.current.takes.review?.transpose).toBe(3);
+    act(() => result.current.setTranspose(0));
+    expect(result.current.library.score).toBe(source);
+    act(() => result.current.setTranspose(2));
+    await act(async () => {
+      await result.current.library.select(result.current.library.pieces[1]);
+    });
+    expect(result.current.transpose).toBe(0);
   });
 });

@@ -29,11 +29,13 @@ export async function openInstrumentCapture(
     const channelCount = Math.max(1, Math.min(32, settings.channelCount ?? 1));
     const source = context.createMediaStreamSource(stream);
     const splitter = context.createChannelSplitter(channelCount);
+    const gain = context.createGain();
     const analyser = context.createAnalyser();
     analyser.fftSize = 4096;
     analyser.smoothingTimeConstant = 0;
     source.connect(splitter);
-    splitter.connect(analyser, 0);
+    splitter.connect(gain, 0);
+    gain.connect(analyser);
     // Deliberately no connection to context.destination: live input is never monitored.
     return {
       stream,
@@ -47,11 +49,15 @@ export async function openInstrumentCapture(
         if (!Number.isInteger(channel) || channel < 0 || channel >= channelCount)
           throw new Error('Choose an available input channel.');
         splitter.disconnect();
-        splitter.connect(analyser, channel);
+        splitter.connect(gain, channel);
+      },
+      setGain(db: number) {
+        gain.gain.setTargetAtTime(10 ** (db / 20), context!.currentTime, 0.015);
       },
       close() {
         source.disconnect();
         splitter.disconnect();
+        gain.disconnect();
         analyser.disconnect();
         stream.getTracks().forEach((t) => t.stop());
         if (context!.state !== 'closed') void context!.close();

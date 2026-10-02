@@ -9,18 +9,36 @@ function median(values: number[]) {
 }
 export function summarize(notes: NoteResult[]) {
   const assessed = notes.filter((note) => note.status !== 'unclear');
+  const coverage = notes.length ? Math.round((100 * assessed.length) / notes.length) : 0;
+  const pitchAccuracy = assessed.length
+    ? Math.round(
+        (100 * assessed.filter((note) => note.status === 'matched').length) / assessed.length,
+      )
+    : null;
+  const timed = notes.filter((note) =>
+    note.timingStatus ? note.timingStatus !== 'unclear' : note.status !== 'unclear',
+  );
+  const timingCoverage = notes.length ? Math.round((100 * timed.length) / notes.length) : 0;
+  const timingScore = timed.length
+    ? Math.round(
+        timed.reduce((sum, note) => {
+          if (note.delta === null) return sum;
+          return sum + Math.max(0, Math.min(100, ((150 - Math.abs(note.delta)) * 100) / 125));
+        }, 0) / timed.length,
+      )
+    : null;
   return {
-    pitchAccuracy: assessed.length
-      ? Math.round(
-          (100 * assessed.filter((note) => note.status === 'matched').length) / assessed.length,
-        )
-      : null,
+    pitchAccuracy,
+    timingScore,
+    timingCoverage,
+    overallScore:
+      coverage >= 60 && timingCoverage >= 60 && pitchAccuracy !== null && timingScore !== null
+        ? Math.round((pitchAccuracy + timingScore) / 2)
+        : null,
     timingMs: median(
-      notes
-        .filter((note) => note.status === 'matched' && note.delta !== null)
-        .map((note) => Math.abs(note.delta!)),
+      timed.filter((note) => note.delta !== null).map((note) => Math.abs(note.delta!)),
     ),
-    coverage: notes.length ? Math.round((100 * assessed.length) / notes.length) : 0,
+    coverage,
   };
 }
 
@@ -35,6 +53,9 @@ export function assess(
   const healthyInput = observations.some(
     (o) => o.rms > 0.012 && o.rms < 0.8 && o.midi !== null && o.confidence >= 0.88,
   );
+  const reliableTiming = (o: Observation) =>
+    o.timingReliable ?? (o.midi !== null && o.confidence >= 0.88 && o.rms > 0.012 && o.rms < 0.8);
+  const timingInput = observations.some(reliableTiming);
   return expected.map((note, index) => {
     const target = ticksToSeconds(note.tick - startTick, bpm);
     const nextGap = expected[index + 1]
@@ -51,7 +72,14 @@ export function assess(
       }
     });
     if (!note.eligible)
-      return { bar: note.bar, midi: note.midi, heard: null, status: 'unclear', delta: null };
+      return {
+        bar: note.bar,
+        midi: note.midi,
+        heard: null,
+        status: 'unclear',
+        delta: null,
+        timingStatus: 'unclear',
+      };
     if (match < 0)
       return {
         bar: note.bar,
@@ -59,6 +87,7 @@ export function assess(
         heard: null,
         status: healthyInput ? 'missed' : 'unclear',
         delta: null,
+        timingStatus: timingInput ? 'missed' : 'unclear',
       };
     used.add(match);
     const observation = observations[match];
@@ -73,7 +102,10 @@ export function assess(
         : Math.abs(observation.midi! - note.midi) < 0.65
           ? 'matched'
           : 'pitch',
-      delta: clear ? Math.round((observation.time - offsetMs / 1000 - target) * 1000) : null,
+      delta: reliableTiming(observation)
+        ? Math.round((observation.time - offsetMs / 1000 - target) * 1000)
+        : null,
+      timingStatus: reliableTiming(observation) ? 'matched' : 'unclear',
     };
   });
 }
@@ -105,7 +137,10 @@ export function coaching(take: Take) {
       action: 'Try a slower phrase',
       kind: 'pitch' as const,
     };
-  if (take.timingMs !== null && take.timingMs > 30)
+  if (
+    (take.timingScore !== undefined && take.timingScore !== null && take.timingScore < 90) ||
+    (take.timingMs !== null && take.timingMs > 30)
+  )
     return {
       title: 'Find a steady landing.',
       body: 'Some entries sit away from the pulse. Try the transition with a click, then bring the band back. Timing is an estimate on this setup.',

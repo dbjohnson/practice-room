@@ -19,7 +19,11 @@ export function ProgressPage() {
   const names = [...new Map(r.takes.takes.map((t) => [t.pieceId, t.pieceTitle])).entries()];
   const minutes = takes.reduce((n, t) => n + t.duration, 0);
   const good = takes.filter(
-    (t) => !t.interrupted && t.coverage >= 90 && (t.pitchAccuracy ?? 0) >= 90,
+    (t) =>
+      !t.interrupted &&
+      t.coverage >= 90 &&
+      (t.pitchAccuracy ?? 0) >= 90 &&
+      (t.timingScore ?? 0) >= 90,
   );
   const chart = [...takes].reverse().slice(-12);
   const exportHistory = () => {
@@ -52,13 +56,7 @@ export function ProgressPage() {
             <span className="tiny-line" />
             EVIDENCE OF YOUR EFFORT
           </div>
-          <h1>
-            {r.concept === 'trail'
-              ? 'Look how far the little steps go.'
-              : r.concept === 'pocket'
-                ? 'A groove you can come back to.'
-                : 'The music is becoming yours.'}
-          </h1>
+          <h1>Your practice progress.</h1>
           <p>Your own takes. The tempo you played. The parts that are coming together.</p>
         </div>
         <button
@@ -70,6 +68,15 @@ export function ProgressPage() {
           Export history
         </button>
       </div>
+      <button
+        className="button button-quiet"
+        onClick={() => {
+          r.setGymView('progress');
+          r.setPage('gym');
+        }}
+      >
+        Gym progress, records & rewards <ArrowRight size={16} />
+      </button>
       <div className="progress-summary">
         {[
           {
@@ -86,9 +93,9 @@ export function ProgressPage() {
           },
           {
             icon: Target,
-            label: 'STRONG NOTE MATCHES',
+            label: 'STRONG TAKES',
             value: String(good.length),
-            sub: '90% notes + 90% coverage',
+            sub: '90% notes, timing and coverage',
           },
         ].map(({ icon: Icon, label, value, sub }) => (
           <div className="progress-stat" key={label}>
@@ -147,7 +154,7 @@ export function ProgressPage() {
           <section className="progress-chart-card">
             <div className="progress-chart-heading">
               <div>
-                <div className="eyebrow">NOTE MATCHES OVER TIME</div>
+                <div className="eyebrow">TAKE SCORES OVER TIME</div>
                 <h2>A little more sure of the notes.</h2>
               </div>
               <label>
@@ -169,13 +176,13 @@ export function ProgressPage() {
             <div
               className="history-chart"
               role="img"
-              aria-label="Note accuracy for the latest saved takes, with tempo labels"
+              aria-label="Combined note and timing scores for saved takes, with tempo labels"
             >
               {chart.map((t) => (
                 <div className="history-bar" key={t.id}>
-                  <span>{t.pitchAccuracy === null ? '—' : `${t.pitchAccuracy}%`}</span>
+                  <span>{t.overallScore == null ? '—' : `${t.overallScore}%`}</span>
                   <div>
-                    <i style={{ height: `${t.pitchAccuracy ?? 0}%` }} />
+                    <i style={{ height: `${t.overallScore ?? 0}%` }} />
                   </div>
                   <strong>{t.tempo}</strong>
                   <small>BPM</small>
@@ -197,8 +204,9 @@ export function ProgressPage() {
                   <tr>
                     <th>Piece / passage</th>
                     <th>Tempo</th>
+                    <th>Take score</th>
                     <th>Notes</th>
-                    <th>Timing estimate</th>
+                    <th>Timing</th>
                     <th>Coverage</th>
                     <th>Review</th>
                   </tr>
@@ -214,8 +222,14 @@ export function ProgressPage() {
                         </small>
                       </td>
                       <td>{t.tempo} BPM</td>
+                      <td>{t.overallScore == null ? '—' : `${t.overallScore}%`}</td>
                       <td>{t.pitchAccuracy === null ? '—' : `${t.pitchAccuracy}%`}</td>
-                      <td>{t.timingMs === null ? '—' : `${Math.round(t.timingMs)} ms`}</td>
+                      <td>
+                        {t.timingScore == null ? '—' : `${t.timingScore}%`}
+                        <small>
+                          {t.timingMs === null ? '' : `${Math.round(t.timingMs)} ms median`}
+                        </small>
+                      </td>
                       <td>{t.coverage}%</td>
                       <td>
                         <button
@@ -237,17 +251,14 @@ export function ProgressPage() {
       {!!r.takes.takes.length && (
         <button className="text-button danger-text" onClick={() => setClearOpen(true)}>
           <Trash2 size={14} />
-          Clear local practice history
+          Clear saved take history
         </button>
       )}
-      <Modal
-        open={clearOpen}
-        onClose={() => setClearOpen(false)}
-        title="Clear your practice history?"
-      >
+      <Modal open={clearOpen} onClose={() => setClearOpen(false)} title="Clear your saved takes?">
         <p className="body-copy">
-          This removes saved take results from this device. Your music library is kept. Export your
-          history first if you want a copy.
+          This removes detailed take results and audio recordings from this device. Your music
+          library, gym exercises and compact gym progress are kept. Export history for a copy of
+          results, and download any recordings you want to keep from their take reviews.
         </p>
         <div className="modal-actions">
           <button className="button button-quiet" onClick={() => setClearOpen(false)}>
