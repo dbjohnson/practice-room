@@ -12,6 +12,7 @@ export function InterfaceConnection() {
   const available = devices.some((device) => device.id === selected);
   const connect = () => {
     r.halt();
+    r.midi.stop();
     void start(selected);
   };
   return (

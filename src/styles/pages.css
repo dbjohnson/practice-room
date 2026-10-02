@@ -1104,3 +1104,22 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+.track-route {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 11px;
+}
+.track-route select {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  padding: 3px 6px;
+}
+.track-route input {
+  width: 44px;
+  margin-left: 4px;
+  font-size: 11px;
+  padding: 3px 4px;
+}

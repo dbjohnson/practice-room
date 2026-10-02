@@ -9,6 +9,8 @@ export default defineConfig({
         'src/time/**/*.ts',
         'src/music/jam.ts',
         'src/audio/assessment.ts',
+        'src/audio/midiInput.ts',
+        'src/audio/midiOut.ts',
         'src/audio/pitch.ts',
         'src/audio/onsets.ts',
         'src/domain/milestones.ts',

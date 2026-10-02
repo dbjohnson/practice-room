@@ -33,6 +33,8 @@ export interface PlayerOptions {
   click: boolean;
   countIn: boolean;
   muted: number[];
+  /** Tracks played by an external instrument instead of the built-in sound. */
+  routed?: number[];
   volumes: Record<number, number>;
   effects: MixEffects;
   swing: number | null;
@@ -43,6 +45,8 @@ export interface PlayerOptions {
   onReady: (api: AlphaTabApi | null) => void;
   onFinish: () => void;
   onPosition: (tick: number, bpm: number, time: number) => void;
+  /** The MIDI the player will sound, after feel and articulation are applied. */
+  onMidi?: (file: midi.MidiFile) => void;
 }
 
 export function useScorePlayer(options: PlayerOptions) {
@@ -161,6 +165,7 @@ export function useScorePlayer(options: PlayerOptions) {
         latest.current.onStatus({ ready: false, instrumentsReady: false });
         naturalPlayback(file, latest.current.recipe);
         exercisePlayback(file, latest.current.exerciseArticulation);
+        latest.current.onMidi?.(file);
         // Rhythm changes also regenerate MIDI without replacing the score object.
         requestAnimationFrame(() => requestAnimationFrame(loadSounds));
       }
@@ -270,6 +275,7 @@ export function useScorePlayer(options: PlayerOptions) {
     options.countIn,
     options.track,
     options.muted,
+    options.routed?.join(),
     options.volumes,
     options.score,
     options.replaying,

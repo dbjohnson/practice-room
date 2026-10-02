@@ -13,10 +13,11 @@ import { InputLevelMeter } from '../components/InputLevelMeter';
 import { TunerPanel } from '../components/TunerPanel';
 import { LatencyCalibration } from '../components/LatencyCalibration';
 import { InputGain } from '../components/InputGain';
+import { MidiConnection } from '../components/MidiConnection';
 
 export function InstrumentPage() {
   const r = useRoom();
-  const ready = r.input.status.state === 'ready';
+  const ready = r.inputConnected;
   return (
     <div className="instrument-page page-enter">
       <div className="page-heading">
@@ -70,6 +71,7 @@ export function InstrumentPage() {
           <InputGain />
           <InputLevelMeter status={r.input.status} />
           <LatencyCalibration />
+          <MidiConnection />
         </div>
         <TunerPanel status={r.input.status} />
       </div>

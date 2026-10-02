@@ -65,15 +65,13 @@ export function Shell({ children }: { children: ReactNode }) {
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
           <button
-            className={`input-connect ${room.input.status.state === 'ready' ? 'connected' : ''}`}
+            className={`input-connect ${room.inputConnected ? 'connected' : ''}`}
             aria-label="Instrument & tuner"
             onClick={() => room.setPage('instrument')}
           >
             <span className="status-dot" />
             <Headphones size={16} />
-            <span className="input-label">
-              {room.input.status.state === 'ready' ? 'Connected' : 'Instrument'}
-            </span>
+            <span className="input-label">{room.inputConnected ? 'Connected' : 'Instrument'}</span>
           </button>
           <button className="icon-button" aria-label="Help" onClick={() => room.setHelpOpen(true)}>
             <CircleHelp size={18} />

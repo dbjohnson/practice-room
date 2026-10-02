@@ -16,7 +16,7 @@ export function CoachPanel() {
           disabled={r.takes.recording}
           onClick={() => {
             r.setMode('assess');
-            if (r.input.status.state === 'ready')
+            if (r.inputConnected)
               r.notify('Record take is selected. Press record when you’re ready.');
           }}
         >

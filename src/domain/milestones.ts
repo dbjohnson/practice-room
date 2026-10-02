@@ -1,7 +1,7 @@
 import type { Take } from './types';
 
 export function practiceMilestones(takes: Take[]) {
-  const real = takes.filter((t) => t.origin === 'microphone');
+  const real = takes.filter((t) => t.origin !== 'example');
   const days = new Set(real.map((t) => new Date(t.createdAt).toLocaleDateString()));
   const comparable = new Map<string, number>();
   for (const take of real) {

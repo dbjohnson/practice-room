@@ -19,6 +19,7 @@ export function configurePlayer(api: AlphaTabApi, options: PlayerOptions, forceR
     api.changeTrackMute(
       [track],
       options.muted.includes(track.index) ||
+        options.routed?.includes(track.index) ||
         (options.replaying && !options.replayBacking) ||
         (options.mode !== 'listen' && options.track === track.index),
     );

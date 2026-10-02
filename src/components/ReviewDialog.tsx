@@ -36,6 +36,8 @@ export function ReviewDialog() {
                   <FlaskConical size={13} />
                   Illustrative example
                 </>
+              ) : take.origin === 'midi' ? (
+                'MIDI instrument'
               ) : (
                 'Experimental input analysis'
               )}
@@ -96,9 +98,13 @@ export function ReviewDialog() {
               <strong>{take.coverage}%</strong>
               <span>
                 Timing evidence: {take.timingCoverage ?? take.coverage}% ·{' '}
-                {take.calibrated
-                  ? `calibrated · ${-(take.latencyMs ?? 0)} ms correction`
-                  : 'input not calibrated'}
+                {take.origin === 'midi'
+                  ? take.latencyMs
+                    ? `MIDI · ${take.latencyMs} ms output delay reported by browser`
+                    : 'MIDI · output delay unknown'
+                  : take.calibrated
+                    ? `calibrated · ${-(take.latencyMs ?? 0)} ms correction`
+                    : 'input not calibrated'}
               </span>
             </div>
           </div>
@@ -202,7 +208,7 @@ export function ReviewDialog() {
                             end: Math.min(r.library.piece.bars, trouble),
                           },
                     );
-                  r.setClick(advice.kind === 'timing');
+                  if (advice.kind === 'timing') r.setClick(true);
                   r.setMode('along');
                   r.setPage('practice');
                 }}
@@ -219,9 +225,11 @@ export function ReviewDialog() {
             <span>
               {take.origin === 'example'
                 ? 'This example lets you explore the feedback design. It is not a recording of you and cannot earn progress.'
-                : take.calibrated
-                  ? 'Single-note estimates use your input calibration. Chords, bends and ambiguous input remain ungraded.'
-                  : 'Single-note estimates include unmeasured device latency. Calibrate in Input settings to compensate. Chords, bends and ambiguous input remain ungraded.'}
+                : take.origin === 'midi'
+                  ? 'MIDI reports the exact keys you played, chords included. Bends, percussion and other expressive notation remain ungraded.'
+                  : take.calibrated
+                    ? 'Single-note estimates use your input calibration. Chords, bends and ambiguous input remain ungraded.'
+                    : 'Single-note estimates include unmeasured device latency. Calibrate in Input settings to compensate. Chords, bends and ambiguous input remain ungraded.'}
             </span>
           </div>
           <div className="modal-actions">

@@ -19,6 +19,8 @@ export function ScoreCanvas() {
     click: r.click,
     countIn: r.countIn,
     muted: r.muted,
+    routed: r.midiOut.routed,
+    onMidi: r.midiOut.onMidi,
     volumes: r.volumes,
     effects: r.mixEffects,
     swing: r.swing,
@@ -42,6 +44,7 @@ export function ScoreCanvas() {
       if (r.exerciseLoop.active) return;
       r.takes.onPosition(tick, bpm);
       r.takePlayback.onPosition(tick);
+      r.midiOut.onPosition(tick);
     },
   });
   return (

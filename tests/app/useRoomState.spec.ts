@@ -167,3 +167,126 @@ describe('key transposition state', () => {
     expect(result.current.transpose).toBe(0);
   });
 });
+
+describe('practice settings', () => {
+  it('restores toggles and a piece’s tempo, loop and mix after a reload', async () => {
+    const first = renderHook(useRoomState);
+    const blues = first.result.current.library.pieces[1];
+    act(() => {
+      first.result.current.setClick(true);
+      first.result.current.setCountIn(false);
+      first.result.current.setLoop(false);
+      first.result.current.setMixEffects((effects) => ({ ...effects, reverb: 10 }));
+    });
+    await act(async () => void (await first.result.current.library.select(blues)));
+    act(() => {
+      first.result.current.setTempo(64);
+      first.result.current.setRange({ start: 5, end: 8 });
+      first.result.current.setMuted([2]);
+      first.result.current.setVolumes({ 3: 40 });
+    });
+    first.unmount();
+    const { result } = renderHook(useRoomState);
+    expect(result.current).toMatchObject({ click: true, countIn: false, loop: false });
+    expect(result.current.mixEffects.reverb).toBe(10);
+    // The open piece comes from the page address; its settings come back when it is opened.
+    const study = result.current.library.piece;
+    expect(result.current).toMatchObject({
+      tempo: study.bpm,
+      range: { start: 1, end: study.bars },
+      muted: [],
+    });
+    await act(async () => void (await result.current.library.select(blues)));
+    expect(result.current).toMatchObject({
+      tempo: 64,
+      range: { start: 5, end: 8 },
+      muted: [2],
+      volumes: { 3: 40 },
+    });
+  });
+  it('ignores damaged stored values', () => {
+    localStorage.setItem('practice-room:click', '"yes"');
+    localStorage.setItem('practice-room:mixEffects', '{"compression":900}');
+    localStorage.setItem(
+      'practice-room:pieceSettings',
+      JSON.stringify({ 'evening-study': { tempo: 9000, range: { start: 40, end: 2 } } }),
+    );
+    const { result } = renderHook(useRoomState);
+    const bars = result.current.library.piece.bars;
+    expect(result.current).toMatchObject({
+      click: false,
+      tempo: 240,
+      range: { start: bars, end: bars },
+    });
+    expect(result.current.mixEffects.compression).toBe(30);
+  });
+});
+
+describe('recording with a MIDI instrument', () => {
+  it('connects, grades chords from exact keys and stops when the instrument is unplugged', async () => {
+    const keyboard = {
+      id: 'keys',
+      name: 'Stage piano',
+      state: 'connected',
+      onmidimessage: null as ((event: { data: Uint8Array; timeStamp: number }) => void) | null,
+    };
+    const access = {
+      inputs: new Map([['keys', keyboard]]),
+      onstatechange: null as (() => void) | null,
+    };
+    vi.stubGlobal('navigator', { ...navigator, requestMIDIAccess: vi.fn(async () => access) });
+    const hook = renderHook(useRoomState, { reactStrictMode: true });
+    const { result } = hook;
+    const fixture = takeFixture(result.current.library.score);
+    await act(async () => result.current.midi.start('keys'));
+    expect(result.current.midi.status).toMatchObject({
+      state: 'ready',
+      deviceLabel: 'Stage piano',
+    });
+    expect(result.current.inputConnected).toBe(true);
+    const chordTrack = result.current.library.score.tracks.findIndex((track) =>
+      track.staves[0].bars[0].voices[0].beats.some((beat) => beat.notes.length > 1),
+    );
+    expect(chordTrack).toBeGreaterThanOrEqual(0);
+    act(() => {
+      result.current.setApi(fixture.options.api.current);
+      result.current.updatePlayer({ ready: true });
+      result.current.setTrack(chordTrack);
+      result.current.setTempo(60);
+      result.current.setRange({ start: 1, end: 1 });
+      result.current.setMode('assess');
+    });
+    expect(result.current.page).toBe('practice');
+    act(() => result.current.play());
+    expect(result.current.takes.recording).toBe(true);
+    const beat = result.current.library.score.tracks[
+      chordTrack
+    ].staves[0].bars[0].voices[0].beats.find((b) => b.notes.length > 1)!;
+    const beatTick = fixture.player.tickCache.getBeatStart(beat);
+    act(() => {
+      now = 14;
+      result.current.takes.onPosition(0, 60);
+      const at = 14000 + (beatTick / 960) * 1000;
+      [...beat.notes].reverse().forEach((note, i) =>
+        keyboard.onmidimessage!({
+          data: new Uint8Array([0x90, note.realValue, 80]),
+          timeStamp: at + 20 + i * 4,
+        }),
+      );
+      now = 14 + beatTick / 960 + 1;
+      result.current.takes.onPosition(beatTick + 960, 60);
+    });
+    act(() => {
+      keyboard.state = 'disconnected';
+      access.onstatechange!();
+    });
+    expect(result.current.midi.status.state).toBe('error');
+    expect(result.current.takes.recording).toBe(false);
+    const review = result.current.takes.review ?? result.current.takes.passResult;
+    expect(review).toMatchObject({ origin: 'midi', rubric: 'midi-v1', interrupted: true });
+    const chord = review!.notes.filter((n) => beat.notes.some((b) => b.realValue === n.midi));
+    expect(chord.slice(0, beat.notes.length).every((n) => n.status === 'matched')).toBe(true);
+    hook.unmount();
+    expect(keyboard.onmidimessage).toBeNull();
+  });
+});

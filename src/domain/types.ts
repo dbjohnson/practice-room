@@ -50,6 +50,8 @@ export interface ExpectedNote {
   bar: number;
   beatId: number;
   eligible: boolean;
+  /** Seconds from the start of the passage at the practice tempo. */
+  time?: number;
 }
 export interface Observation {
   time: number;
@@ -66,6 +68,7 @@ export interface NoteResult {
   status: 'matched' | 'pitch' | 'missed' | 'unclear';
   delta: number | null;
   timingStatus?: 'matched' | 'missed' | 'unclear';
+  octave?: boolean;
 }
 export interface Take {
   pass?: number;
@@ -76,7 +79,7 @@ export interface Take {
   trackName: string;
   tempo: number;
   range: LoopRange;
-  origin: 'microphone' | 'example';
+  origin: 'microphone' | 'midi' | 'example';
   notes: NoteResult[];
   pitchAccuracy: number | null;
   timingMs: number | null;
@@ -90,7 +93,7 @@ export interface Take {
   transpose?: number;
   gym?: GymTakeContext;
   interrupted?: boolean;
-  rubric: 'mono-v1' | 'mono-v2' | 'mono-v3';
+  rubric: 'mono-v1' | 'mono-v2' | 'mono-v3' | 'midi-v1';
   audio?: { duration: number; track: number; swing: number | null };
 }
 export interface InputStatus {

@@ -176,3 +176,41 @@ describe('combined note and timing scores', () => {
     expect(coaching(take({ timingScore: 75, timingMs: 12 })).kind).toBe('timing');
   });
 });
+
+describe('ordered note alignment', () => {
+  const pitched = (tick: number, midi: number, eligible = true): ExpectedNote => ({
+    ...note(tick, eligible),
+    midi,
+  });
+  it('keeps one late note from shifting every later match', () => {
+    const targets = [0, 1, 2, 3].map((i) => pitched(i * 480, 60 + i));
+    const played = [heard(0.11, 60), heard(0.26, 61), heard(0.5, 62), heard(0.75, 63)];
+    const result = assess(targets, played, 120, 0);
+    expect(result.map((n) => n.status)).toEqual(['matched', 'matched', 'matched', 'matched']);
+    expect(result.map((n) => n.delta)).toEqual([110, 10, 0, 0]);
+  });
+  it('ignores stray attacks and prefers the right pitch nearby', () => {
+    const targets = [pitched(0, 60), pitched(960, 64)];
+    const played = [heard(0.01, 60), heard(0.45, 71), heard(0.96, 57), heard(1.04, 64)];
+    const result = assess(targets, played, 60, 0);
+    expect(result.map((n) => n.status)).toEqual(['matched', 'matched']);
+    expect(result[1].delta).toBe(40);
+  });
+  it('accepts an octave reading as the written note and flags it', () => {
+    const [result] = assess([pitched(0, 40)], [heard(0, 52)], 60, 0);
+    expect(result).toMatchObject({ status: 'matched', octave: true, heard: 52 });
+    expect(assess([pitched(0, 40)], [heard(0, 47)], 60, 0)[0].status).toBe('pitch');
+  });
+  it('lets an ungraded chord absorb its own attack', () => {
+    const targets = [pitched(0, 48, false), pitched(240, 60)];
+    const result = assess(targets, [heard(0, 43), heard(0.26, 60)], 60, 0);
+    expect(result.map((n) => n.status)).toEqual(['unclear', 'matched']);
+  });
+  it('uses explicit note times when the tempo changes inside the passage', () => {
+    const targets = [
+      { ...note(0), time: 0 },
+      { ...note(960), time: 0.5 },
+    ];
+    expect(assess(targets, [heard(0), heard(0.5)], 60, 0).map((n) => n.delta)).toEqual([0, 0]);
+  });
+});

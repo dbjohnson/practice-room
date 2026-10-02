@@ -42,6 +42,22 @@ export function summarize(notes: NoteResult[]) {
   };
 }
 
+const MISS_COST = 1;
+const EXTRA_COST = 0.2;
+const WRONG_PITCH_COST = 0.6;
+
+const isClear = (o: Observation) => o.confidence >= 0.88 && o.midi !== null && o.rms < 0.8;
+function pitchClass(o: Observation, midi: number): 'same' | 'octave' | 'other' {
+  const distance = Math.abs(o.midi! - midi);
+  if (distance < 0.65) return 'same';
+  return Math.abs(distance - 12 * Math.round(distance / 12)) < 0.65 ? 'octave' : 'other';
+}
+
+/**
+ * Pairs each written note with at most one detected attack, in order, choosing the
+ * pairing with the lowest total cost. One late note or a stray attack therefore
+ * cannot shift every later match.
+ */
 export function assess(
   expected: ExpectedNote[],
   observations: Observation[],
@@ -49,63 +65,94 @@ export function assess(
   startTick: number,
   offsetMs = 0,
 ): NoteResult[] {
-  const used = new Set<number>();
-  const healthyInput = observations.some(
-    (o) => o.rms > 0.012 && o.rms < 0.8 && o.midi !== null && o.confidence >= 0.88,
-  );
-  const reliableTiming = (o: Observation) =>
-    o.timingReliable ?? (o.midi !== null && o.confidence >= 0.88 && o.rms > 0.012 && o.rms < 0.8);
-  const timingInput = observations.some(reliableTiming);
-  return expected.map((note, index) => {
-    const target = ticksToSeconds(note.tick - startTick, bpm);
-    const nextGap = expected[index + 1]
-      ? ticksToSeconds(expected[index + 1].tick - note.tick, bpm)
-      : 0.4;
-    const window = Math.min(0.22, Math.max(0.06, nextGap * 0.45));
-    let match = -1;
-    let distance = Infinity;
-    observations.forEach((o, i) => {
-      const delta = Math.abs(o.time - offsetMs / 1000 - target);
-      if (!used.has(i) && delta < distance && delta <= window) {
-        match = i;
-        distance = delta;
-      }
-    });
-    if (!note.eligible)
+  const offset = offsetMs / 1000;
+  const targets = expected.map((note) => note.time ?? ticksToSeconds(note.tick - startTick, bpm));
+  const heard = [...observations].sort((a, b) => a.time - b.time);
+  // Keys struck together arrive in any order; match them low to high like the score.
+  for (let start = 0; start < heard.length;) {
+    let end = start + 1;
+    while (end < heard.length && heard[end].time - heard[start].time <= 0.03) end++;
+    if (end - start > 1) {
+      const chord = heard.slice(start, end).sort((a, b) => (a.midi ?? 0) - (b.midi ?? 0));
+      heard.splice(start, chord.length, ...chord);
+    }
+    start = end;
+  }
+  const healthyInput = heard.some((o) => o.rms > 0.012 && isClear(o));
+  const reliableTiming = (o: Observation) => o.timingReliable ?? (isClear(o) && o.rms > 0.012);
+  const timingInput = heard.some(reliableTiming);
+  const n = expected.length;
+  const m = heard.length;
+  const windows = targets.map((target, i) => {
+    // Distance to the nearest note at a different time; chord notes share one.
+    let before = i - 1;
+    while (before >= 0 && targets[before] >= target) before--;
+    let after = i + 1;
+    while (after < n && targets[after] <= target) after++;
+    const gap = Math.min(
+      before >= 0 ? target - targets[before] : Infinity,
+      after < n ? targets[after] - target : Infinity,
+    );
+    return Math.min(0.25, Math.max(0.07, (Number.isFinite(gap) ? gap : 0.5) * 0.5));
+  });
+  const pairCost = (i: number, j: number) => {
+    const distance = Math.abs(heard[j].time - offset - targets[i]);
+    if (distance > windows[i]) return Infinity;
+    // Ungraded notes (chords, bends) still absorb their own attack.
+    const wrong =
+      expected[i].eligible &&
+      isClear(heard[j]) &&
+      pitchClass(heard[j], expected[i].midi) === 'other';
+    return (0.5 * distance) / windows[i] + (wrong ? WRONG_PITCH_COST : 0);
+  };
+  // cost[i][j]: best alignment of the first i notes with the first j attacks.
+  const width = m + 1;
+  const cost = new Float32Array((n + 1) * width);
+  const step = new Uint8Array((n + 1) * width);
+  for (let j = 1; j <= m; j++) {
+    cost[j] = j * EXTRA_COST;
+    step[j] = 2;
+  }
+  for (let i = 1; i <= n; i++) {
+    cost[i * width] = i * MISS_COST;
+    step[i * width] = 1;
+    for (let j = 1; j <= m; j++) {
+      const miss = cost[(i - 1) * width + j] + MISS_COST;
+      const extra = cost[i * width + j - 1] + EXTRA_COST;
+      const pair = cost[(i - 1) * width + j - 1] + pairCost(i - 1, j - 1);
+      const best = Math.min(pair, miss, extra);
+      cost[i * width + j] = best;
+      step[i * width + j] = best === pair ? 0 : best === miss ? 1 : 2;
+    }
+  }
+  const matches = new Array<number>(n).fill(-1);
+  for (let i = n, j = m; i > 0 || j > 0;) {
+    const move = step[i * width + j];
+    if (move === 0) matches[--i] = --j;
+    else if (move === 1) i--;
+    else j--;
+  }
+  return expected.map((note, i): NoteResult => {
+    const base = { bar: note.bar, midi: note.midi, heard: null, delta: null };
+    if (!note.eligible) return { ...base, status: 'unclear', timingStatus: 'unclear' };
+    if (matches[i] < 0)
       return {
-        bar: note.bar,
-        midi: note.midi,
-        heard: null,
-        status: 'unclear',
-        delta: null,
-        timingStatus: 'unclear',
-      };
-    if (match < 0)
-      return {
-        bar: note.bar,
-        midi: note.midi,
-        heard: null,
+        ...base,
         status: healthyInput ? 'missed' : 'unclear',
-        delta: null,
         timingStatus: timingInput ? 'missed' : 'unclear',
       };
-    used.add(match);
-    const observation = observations[match];
-    const clear =
-      observation.confidence >= 0.88 && observation.midi !== null && observation.rms < 0.8;
+    const observation = heard[matches[i]];
+    const timed = reliableTiming(observation);
+    const pitch = isClear(observation) ? pitchClass(observation, note.midi) : null;
     return {
       bar: note.bar,
       midi: note.midi,
       heard: observation.midi,
-      status: !clear
-        ? 'unclear'
-        : Math.abs(observation.midi! - note.midi) < 0.65
-          ? 'matched'
-          : 'pitch',
-      delta: reliableTiming(observation)
-        ? Math.round((observation.time - offsetMs / 1000 - target) * 1000)
-        : null,
-      timingStatus: reliableTiming(observation) ? 'matched' : 'unclear',
+      status: pitch === null ? 'unclear' : pitch === 'other' ? 'pitch' : 'matched',
+      delta: timed ? Math.round((observation.time - offset - targets[i]) * 1000) : null,
+      timingStatus: timed ? 'matched' : 'unclear',
+      // The detector can land an octave away on a weak fundamental; not a wrong note.
+      ...(pitch === 'octave' ? { octave: true } : {}),
     };
   });
 }

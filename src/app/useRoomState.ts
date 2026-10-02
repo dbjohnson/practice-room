@@ -10,6 +10,9 @@ import type { GymSet, GymView } from '../domain/gym';
 import { useLibrary } from './useLibrary';
 import { useTakes } from './useTakes';
 import { useInstrumentInput } from '../audio/useInstrumentInput';
+import { useMidiInput } from '../audio/useMidiInput';
+import { useMidiOut } from '../audio/useMidiOut';
+import { playerContext, reportedOutputLatency } from '../audio/playerLatency';
 import { useAudioDevices } from '../audio/useAudioDevices';
 import { normalizeRange } from '../time/timeline';
 import { DEFAULT_MIX_EFFECTS, type MixEffects } from '../audio/PlaybackEffects';
@@ -19,6 +22,20 @@ import { useTakePlayback } from '../audio/useTakePlayback';
 import type { RecordingData } from '../audio/recording';
 import { normalizeTranspose, scoreKey, transposeScore } from '../music/transposeScore';
 import { useExerciseLoop } from '../audio/useExerciseLoop';
+import {
+  defaultPieceSettings,
+  loadPieceSettings,
+  savePieceSettings,
+  type PieceSettings,
+} from '../storage/pieceSettings';
+import { isBoolean, oneOf, usePersistentState } from '../storage/usePersistentState';
+
+const isMixEffects = (value: unknown) =>
+  !!value &&
+  ['compression', 'reverb'].every((key) => {
+    const amount = (value as Record<string, unknown>)[key];
+    return typeof amount === 'number' && amount >= 0 && amount <= 100;
+  });
 
 export function useRoomState() {
   const [toast, setToast] = useState<string | null>(null);
@@ -58,18 +75,57 @@ export function useRoomState() {
     }
   };
   const [page, setPageState] = useState<Page>('practice');
-  const [tempo, setTempo] = useState(72);
   const [track, setTrack] = useState(0);
-  const [range, setRangeState] = useState<LoopRange>({ start: 1, end: library.piece.bars });
-  const [loop, setLoop] = useState(true);
+  // Tempo, loop range and mix belong to the piece and return when it is reopened.
+  // Gym exercises are set up by their routine each time, so they keep nothing.
+  const settingsFor = (piece: typeof library.piece) =>
+    piece.source === 'exercise'
+      ? defaultPieceSettings(piece)
+      : loadPieceSettings(piece, library.score.tracks.length);
+  const settingsKey = `${library.piece.id}:${library.piece.bpm}:${library.piece.bars}`;
+  const fresh = () => ({
+    key: settingsKey,
+    keep: library.piece.source !== 'exercise',
+    ...settingsFor(library.piece),
+  });
+  const [stored, setStored] = useState(fresh);
+  let settings = stored;
+  if (stored.key !== settingsKey) {
+    settings = fresh();
+    setStored(settings);
+  }
+  const change = useCallback(
+    (next: Partial<PieceSettings>) => setStored((current) => ({ ...current, ...next })),
+    [],
+  );
+  useEffect(() => {
+    if (stored.keep) savePieceSettings(stored);
+  }, [stored]);
+  const { tempo, range, muted, volumes } = settings;
+  const setTempo = useCallback((value: number) => change({ tempo: value }), [change]);
+  const setRangeState = useCallback((value: LoopRange) => change({ range: value }), [change]);
+  const setMuted = useCallback((value: number[]) => change({ muted: value }), [change]);
+  const setVolumes = useCallback(
+    (value: Record<number, number>) => change({ volumes: value }),
+    [change],
+  );
+  const [loop, setLoop] = usePersistentState('loop', true, isBoolean);
   const [view, setView] = useState<View>('both');
   const [zoom, setZoom] = useState(DEFAULT_SCORE_ZOOM);
-  const [mode, setModeState] = useState<PracticeMode>('listen');
-  const [click, setClick] = useState(false);
-  const [countIn, setCountIn] = useState(true);
-  const [muted, setMuted] = useState<number[]>([]);
-  const [volumes, setVolumes] = useState<Record<number, number>>({});
-  const [mixEffects, setMixEffects] = useState<MixEffects>({ ...DEFAULT_MIX_EFFECTS });
+  const [mode, setModeState] = usePersistentState<PracticeMode>(
+    'mode',
+    'listen',
+    oneOf(['listen', 'along', 'assess']),
+  );
+  const [click, setClick] = usePersistentState('click', false, isBoolean);
+  const [countIn, setCountIn] = usePersistentState('countIn', true, isBoolean);
+  const [mixEffects, setMixEffectsState] = usePersistentState<MixEffects>(
+    'mixEffects',
+    { ...DEFAULT_MIX_EFFECTS },
+    isMixEffects,
+  );
+  const setMixEffects = (next: MixEffects | ((current: MixEffects) => MixEffects)) =>
+    setMixEffectsState(typeof next === 'function' ? next(mixEffects) : next);
   const [swingOverride, setSwingOverride] = useState<{ score: model.Score; amount: number } | null>(
     null,
   );
@@ -89,6 +145,7 @@ export function useRoomState() {
   });
   const api = useRef<AlphaTabApi | null>(null);
   const inputLatency = useRef<number | null>(null);
+  const takeSource = useRef<'microphone' | 'midi'>('microphone');
   const recordAudio = useRef<RecordAudio | null>(null);
   const takePlayback = useTakePlayback(api, notify);
   const replayGeneration = useRef(0);
@@ -136,15 +193,35 @@ export function useRoomState() {
     notify,
     recordAudio,
     inputLatency,
+    source: takeSource,
     swing,
     transpose,
   });
   const input = useInstrumentInput(takes.onObservation);
+  // One instrument at a time: an audio interface or a MIDI instrument.
+  const midi = useMidiInput(takes.onObservation);
+  const midiReady = midi.status.state === 'ready';
+  const connected = input.status.state === 'ready' || midiReady;
   const inputReady = useRef(false);
-  inputReady.current = input.status.state === 'ready';
-  recordAudio.current = input.record;
-  inputLatency.current = input.calibration?.offsetMs ?? null;
+  inputReady.current = connected;
+  takeSource.current = midiReady ? 'midi' : 'microphone';
+  // MIDI has nothing to record, and its only delay is the output's.
+  recordAudio.current = midiReady ? null : input.record;
+  const outputLatency = () =>
+    Math.round(reportedOutputLatency(playerContext(api.current)) * 1000) || null;
+  inputLatency.current = midiReady ? outputLatency() : (input.calibration?.offsetMs ?? null);
   const audioDevices = useAudioDevices();
+  const midiOut = useMidiOut({
+    api,
+    score: library.score,
+    playing: player.playing,
+    tempo,
+    range,
+    looping: loop && mode !== 'assess',
+    silent: mode === 'listen' ? muted : [...muted, track],
+    volumes,
+    notify,
+  });
   const exerciseLoop = useExerciseLoop(
     api,
     {
@@ -180,6 +257,7 @@ export function useRoomState() {
     if (page === 'instrument' && next !== 'instrument') {
       audioDevices.cancel();
       if (input.status.state === 'connecting') input.stop();
+      if (midi.status.state === 'connecting') midi.stop();
     }
     if (next !== 'practice' && next !== 'instrument')
       gymStore.commit((d) =>
@@ -198,16 +276,16 @@ export function useRoomState() {
   const setMode = (next: PracticeMode) => {
     halt();
     setModeState(next);
-    if (next === 'assess' && input.status.state !== 'ready') setPage('instrument');
+    if (next === 'assess' && !connected) setPage('instrument');
   };
   useEffect(() => {
-    if (takes.recording && input.status.state !== 'ready') {
+    if (takes.recording && !connected) {
       exerciseLoop.stop();
       updatePlayer({ playing: false });
       api.current?.pause();
       takes.finish();
     }
-  }, [input.status.state, takes.recording, takes.finish]);
+  }, [connected, takes.recording, takes.finish]);
   const openGymSet = async (set: GymSet) => {
     takes.setReview(null);
     if (!(await sourceLibrary.select(exercisePiece(set.exercise, set)))) return false;
@@ -215,10 +293,11 @@ export function useRoomState() {
     setTrack(0);
     setTempo(set.tempo);
     setSwing(null);
-    setLoop(false);
-    setCountIn(true);
-    setClick(true);
-    setModeState(input.status.state === 'ready' ? 'assess' : 'along');
+    // A routine's setup is temporary; it does not replace the player's own preferences.
+    setLoop(false, false);
+    setCountIn(true, false);
+    setClick(true, false);
+    setModeState(connected ? 'assess' : 'along', false);
     setPageState('practice');
     return true;
   };
@@ -271,7 +350,7 @@ export function useRoomState() {
       loop &&
       !takePlayback.active
     ) {
-      if (mode === 'assess' && input.status.state !== 'ready') {
+      if (mode === 'assess' && !connected) {
         setPage('instrument');
         return;
       }
@@ -300,17 +379,12 @@ export function useRoomState() {
       return;
     }
     if (mode === 'assess' && !takePlayback.active) {
-      if (input.status.state !== 'ready') {
+      if (!connected) {
         setPage('instrument');
         return;
       }
       if (!takes.begin()) return;
-    } else if (
-      mode === 'along' &&
-      gymSet &&
-      input.status.state === 'ready' &&
-      !takePlayback.active
-    ) {
+    } else if (mode === 'along' && gymSet && connected && !takePlayback.active) {
       if (!takes.begin(false)) return;
     }
     api.current.play();
@@ -333,7 +407,7 @@ export function useRoomState() {
       if (token !== replayGeneration.current) return;
       takes.setReview(null);
       setPageState('practice');
-      setModeState('along');
+      setModeState('along', false);
       setTempo(take.tempo);
       setTrack(take.audio?.track ?? 0);
       setRangeState(take.range);
@@ -361,7 +435,7 @@ export function useRoomState() {
       setTrack(desiredTrack);
       setTempo(take.tempo);
       setRangeState(take.range);
-      setModeState('along');
+      setModeState('along', false);
       return;
     }
     const desiredSwing = pendingReplay.take.audio?.swing ?? null;
@@ -392,10 +466,6 @@ export function useRoomState() {
     api.current?.stop();
     takePlayback.stop(false);
     setTrack(0);
-    setTempo(library.piece.bpm);
-    setRangeState({ start: 1, end: library.piece.bars });
-    setMuted([]);
-    setVolumes({});
   }, [library.piece.id, library.piece.bpm, library.piece.bars]);
   useEffect(() => {
     if (!toast) return;
@@ -449,6 +519,9 @@ export function useRoomState() {
     halt,
     takes,
     input,
+    midi,
+    midiOut,
+    inputConnected: connected,
     takePlayback,
     replayTake,
     preparingReplay: !!pendingReplay || takePlayback.loading,

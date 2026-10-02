@@ -94,7 +94,7 @@ export function loadTakes(): Take[] {
             typeof t.id === 'string' &&
             typeof t.pieceId === 'string' &&
             Array.isArray(t.notes) &&
-            ['mono-v1', 'mono-v2', 'mono-v3'].includes(t.rubric) &&
+            ['mono-v1', 'mono-v2', 'mono-v3', 'midi-v1'].includes(t.rubric) &&
             !!t.range,
         )
         .slice(0, 200)

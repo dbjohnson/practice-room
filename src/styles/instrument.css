@@ -982,3 +982,7 @@
   min-height: 44px;
   font-size: 40px;
 }
+.midi-panel {
+  padding: 23px 25px 22px;
+  border-top: 1px solid var(--border);
+}

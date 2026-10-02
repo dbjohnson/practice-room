@@ -4,7 +4,7 @@ import type { AlphaTabApi, model } from '@coderline/alphatab';
 import type { LoopRange, Observation, Piece, Take } from '../domain/types';
 import { assess, exampleNotes, summarize } from '../audio/assessment';
 import { analyseRecordedTake } from '../audio/recordedAssessment';
-import { expectedNotes, playbackRange } from '../music/scoreTimeline';
+import { expectedNotes, playbackRange, secondsBetween } from '../music/scoreTimeline';
 import { loadTakes, writeLocal } from '../storage/library';
 import { ticksToSeconds } from '../time/timeline';
 import { useTakeAudio, type RecordAudio } from './useTakeAudio';
@@ -23,6 +23,16 @@ interface TakeOptions {
   swing?: number | null;
   transpose?: number;
   inputLatency?: React.RefObject<number | null>;
+  /** Which kind of instrument is connected, read when a take begins. */
+  source?: React.RefObject<'microphone' | 'midi'>;
+}
+// Real seconds between two ticks at the practice tempo. The player scales the whole
+// score, so written tempo changes inside the passage are kept.
+function elapsed(options: TakeOptions, from: number, to: number, bpm = options.tempo) {
+  const cache = options.api.current?.tickCache;
+  return cache
+    ? secondsBetween(cache, from, to) / (options.tempo / options.score.tempo)
+    : ticksToSeconds(to - from, bpm);
 }
 export function useTakes(options: TakeOptions) {
   const latest = useRef(options);
@@ -45,6 +55,7 @@ export function useTakes(options: TakeOptions) {
     looping: boolean;
     record: boolean;
     pass: number;
+    source: 'microphone' | 'midi';
   } | null>(null);
   const lastTick = useRef<number | null>(null);
   const onPosition = useCallback((tick: number, bpm: number, origin?: number) => {
@@ -53,7 +64,7 @@ export function useTakes(options: TakeOptions) {
     lastTick.current = tick;
     if (origin !== undefined) take.origin = origin;
     if (take.origin === null)
-      take.origin = performance.now() / 1000 - ticksToSeconds(tick - take.startTick, bpm);
+      take.origin = performance.now() / 1000 - elapsed(take.options, take.startTick, tick, bpm);
     latestAudio.current.position(tick, performance.now() / 1000 - take.origin, take.startTick);
   }, []);
   const onObservation = useCallback((observation: Observation) => {
@@ -85,8 +96,8 @@ export function useTakes(options: TakeOptions) {
     ...summarize(notes),
     duration,
     calibrated: false,
-    rubric: 'mono-v3',
-    gym: origin === 'microphone' ? settings.gym : undefined,
+    rubric: origin === 'midi' ? 'midi-v1' : 'mono-v3',
+    gym: origin !== 'example' ? settings.gym : undefined,
   });
   const finish = useCallback((completed = false, boundary?: number) => {
     const captured = capture.current;
@@ -116,7 +127,7 @@ export function useTakes(options: TakeOptions) {
       captured.pass > 1 &&
       (origin === null || ended - origin < 0.1)
     ) {
-      void latestAudio.current.finish(make('microphone', opts, [], 0), null, ended);
+      void latestAudio.current.finish(make(captured.source, opts, [], 0), null, ended);
       return;
     }
     const playedUntil =
@@ -125,9 +136,11 @@ export function useTakes(options: TakeOptions) {
         : completed
           ? Infinity
           : (lastTick.current ?? captured.startTick - 1);
-    const expected = expectedNotes(opts.score, opts.track, opts.range, opts.api.current).filter(
-      (note) => note.tick <= playedUntil,
-    );
+    // MIDI reports every key, so chords are graded; audio detection hears one note.
+    const midi = captured.source === 'midi';
+    const expected = expectedNotes(opts.score, opts.track, opts.range, opts.api.current, midi)
+      .filter((note) => note.tick <= playedUntil)
+      .map((note) => ({ ...note, time: elapsed(opts, captured.startTick, note.tick) }));
     const observations =
       origin === null
         ? []
@@ -136,9 +149,9 @@ export function useTakes(options: TakeOptions) {
             .map((observation) => ({ ...observation, time: observation.time - origin }));
     const notes = assess(expected, observations, opts.tempo, captured.startTick);
     const result = {
-      ...make('microphone', opts, notes, origin === null ? 0 : Math.max(0, ended - origin)),
+      ...make(captured.source, opts, notes, origin === null ? 0 : Math.max(0, ended - origin)),
       interrupted: !completed || origin === null,
-      calibrated: captured.latencyMs !== null,
+      calibrated: !midi && captured.latencyMs !== null,
       latencyMs: captured.latencyMs ?? undefined,
       ...(captured.looping ? { pass: captured.pass } : {}),
     };
@@ -218,6 +231,7 @@ export function useTakes(options: TakeOptions) {
       looping,
       record,
       pass: 1,
+      source: opts.source?.current ?? 'microphone',
     };
     lastTick.current = null;
     setPassResult(null);

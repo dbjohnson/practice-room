@@ -12,7 +12,7 @@ export function ProgressPage() {
   const takes = useMemo(
     () =>
       r.takes.takes.filter(
-        (t) => t.origin === 'microphone' && (piece === 'all' || t.pieceId === piece),
+        (t) => t.origin !== 'example' && (piece === 'all' || t.pieceId === piece),
       ),
     [r.takes.takes, piece],
   );
