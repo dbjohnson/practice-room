@@ -94,7 +94,7 @@ curl -s https://practice.loomen.net/health   # {"app":"practice-room","status":"
 ```
 
 The service serves `dist/` from the checkout in its `WorkingDirectory`, so
-switching branches there changes production. To deploy: update that checkout to
+switching branches there changes production. The repo-local `update` skill carries out these steps and their checks. To deploy: update that checkout to
 `main`, run `npm ci && npm run build`, and `systemctl --user restart
 practice-room` if server code under `src/platform/` changed. Dev workspaces are
 separate processes and do not survive a reboot.
