@@ -90,6 +90,12 @@ export interface Take {
   duration: number;
   calibrated: boolean;
   latencyMs?: number;
+  /** Whether the removed delay was calibrated by the player or reported by the browser. */
+  latencySource?: 'calibrated' | 'reported';
+  /** Median signed distance from the beat: negative is ahead, positive behind. */
+  placementMs?: number | null;
+  /** Median distance from the player's own average placement. */
+  spreadMs?: number | null;
   transpose?: number;
   gym?: GymTakeContext;
   interrupted?: boolean;
@@ -105,6 +111,8 @@ export interface InputStatus {
   deviceLabel: string;
   channelCount: number;
   channel: number;
+  /** Input delay reported by the browser for this connection, in milliseconds. */
+  latencyMs: number;
   midi: number | null;
   confidence: number;
   error: string | null;

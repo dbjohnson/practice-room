@@ -11,6 +11,8 @@ const query = vi.fn();
 const capture = () => ({
   track: new EventTarget(),
   analyser: { fftSize: 4096, getFloatTimeDomainData: vi.fn() },
+  listen: vi.fn(),
+  inputLatency: 0.01,
   context: { sampleRate: 48000 },
   deviceId: 'usb-test',
   label: 'Test interface',

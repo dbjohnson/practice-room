@@ -22,7 +22,10 @@ interface TakeOptions {
   recordAudio?: React.RefObject<RecordAudio | null>;
   swing?: number | null;
   transpose?: number;
+  /** The player's saved timing calibration for this input, in milliseconds. */
   inputLatency?: React.RefObject<number | null>;
+  /** Output plus input delay as the browser reports it, used when nothing is calibrated. */
+  reportedLatency?: React.RefObject<number | null>;
   /** Which kind of instrument is connected, read when a take begins. */
   source?: React.RefObject<'microphone' | 'midi'>;
 }
@@ -33,6 +36,23 @@ function elapsed(options: TakeOptions, from: number, to: number, bpm = options.t
   return cache
     ? secondsBetween(cache, from, to) / (options.tempo / options.score.tempo)
     : ticksToSeconds(to - from, bpm);
+}
+// Median offset of recorded attacks from the same attacks heard live, or null when too
+// few can be paired to trust it.
+function recordingSkew(recorded: Observation[], live: Observation[]) {
+  const offsets: number[] = [];
+  for (const attack of live) {
+    let nearest: number | null = null;
+    for (const other of recorded) {
+      const offset = other.time - attack.time;
+      if (Math.abs(offset) <= 0.15 && (nearest === null || Math.abs(offset) < Math.abs(nearest)))
+        nearest = offset;
+    }
+    if (nearest !== null) offsets.push(nearest);
+  }
+  if (offsets.length < 3) return null;
+  offsets.sort((a, b) => a - b);
+  return offsets[Math.floor(offsets.length / 2)];
 }
 export function useTakes(options: TakeOptions) {
   const latest = useRef(options);
@@ -52,6 +72,7 @@ export function useTakes(options: TakeOptions) {
     endTick: number;
     options: TakeOptions;
     latencyMs: number | null;
+    reportedMs: number | null;
     looping: boolean;
     record: boolean;
     pass: number;
@@ -63,8 +84,11 @@ export function useTakes(options: TakeOptions) {
     if (!take || tick < take.startTick) return;
     lastTick.current = tick;
     if (origin !== undefined) take.origin = origin;
-    if (take.origin === null)
-      take.origin = performance.now() / 1000 - elapsed(take.options, take.startTick, tick, bpm);
+    else {
+      // A busy page delivers position events late, never early: keep the earliest clock.
+      const heard = performance.now() / 1000 - elapsed(take.options, take.startTick, tick, bpm);
+      take.origin = take.origin === null ? heard : Math.min(take.origin, heard);
+    }
     latestAudio.current.position(tick, performance.now() / 1000 - take.origin, take.startTick);
   }, []);
   const onObservation = useCallback((observation: Observation) => {
@@ -74,7 +98,7 @@ export function useTakes(options: TakeOptions) {
     if (take && observation.time >= take.started)
       take.observations.push({
         ...observation,
-        time: observation.time - (take.latencyMs ?? 0) / 1000,
+        time: observation.time - (take.latencyMs ?? take.reportedMs ?? 0) / 1000,
       });
   }, []);
   const make = (
@@ -152,7 +176,12 @@ export function useTakes(options: TakeOptions) {
       ...make(captured.source, opts, notes, origin === null ? 0 : Math.max(0, ended - origin)),
       interrupted: !completed || origin === null,
       calibrated: !midi && captured.latencyMs !== null,
-      latencyMs: captured.latencyMs ?? undefined,
+      latencyMs: captured.latencyMs ?? captured.reportedMs ?? undefined,
+      ...(captured.latencyMs !== null
+        ? { latencySource: 'calibrated' as const }
+        : captured.reportedMs !== null
+          ? { latencySource: 'reported' as const }
+          : {}),
       ...(captured.looping ? { pass: captured.pass } : {}),
     };
     if (captured.looping) {
@@ -160,7 +189,7 @@ export function useTakes(options: TakeOptions) {
     } else if (!captured.record || opts.gym) setPassResult(result);
     else setReview(result);
     if (!captured.record) return;
-    const correction = (captured.latencyMs ?? 0) / 1000;
+    const correction = (captured.latencyMs ?? captured.reportedMs ?? 0) / 1000;
     const finalize =
       boundary !== undefined ? latestAudio.current.snapshot : latestAudio.current.finish;
     void finalize(
@@ -169,7 +198,13 @@ export function useTakes(options: TakeOptions) {
       ended + correction,
       async (blob) => {
         // The WAV was already shifted by the saved offset. Never subtract it a second time.
-        const recorded = await analyseRecordedTake(blob);
+        let recorded = await analyseRecordedTake(blob);
+        // A calibration is measured on the recording itself. Without one, the recording's
+        // clock is unknown, so line it up with the attacks heard live on the audio clock.
+        if (captured.latencyMs === null) {
+          const skew = recordingSkew(recorded, observations);
+          if (skew !== null) recorded = recorded.map((o) => ({ ...o, time: o.time - skew }));
+        }
         const notes = assess(expected, recorded, opts.tempo, captured.startTick);
         return { ...result, notes, ...summarize(notes) };
       },
@@ -228,6 +263,7 @@ export function useTakes(options: TakeOptions) {
       endTick: range.endTick,
       options: { ...opts, range: { ...opts.range } },
       latencyMs: opts.inputLatency?.current ?? null,
+      reportedMs: opts.reportedLatency?.current ?? null,
       looping,
       record,
       pass: 1,

@@ -217,6 +217,56 @@ describe('calibrated take alignment', () => {
   );
 });
 
+describe('uncalibrated take alignment', () => {
+  it('uses the reported delay and lines the recording up with the attacks heard live', async () => {
+    const fixture = takeFixture();
+    const blob = new Blob(['take']);
+    const finish = vi.fn().mockResolvedValue({ blob, peaks: [], duration: 4 });
+    const analyse = vi.spyOn(
+      await import('../../src/audio/recordedAssessment'),
+      'analyseRecordedTake',
+    );
+    // The recording's own clock runs 70 ms behind the audio clock.
+    analyse.mockResolvedValue(
+      fixture.notes.map((note) => ({
+        time: (note.tick - fixture.startTick) / 960 + 0.012 + 0.07,
+        midi: note.midi,
+        confidence: 0.99,
+        rms: 0.2,
+        timingReliable: true,
+      })),
+    );
+    const { result } = renderHook(() =>
+      useTakes({
+        ...fixture.options,
+        reportedLatency: { current: 40 },
+        recordAudio: { current: () => ({ finish, snapshot: finish }) },
+      }),
+    );
+    act(() => {
+      result.current.begin();
+      now = 14;
+      result.current.onPosition(fixture.startTick, 60);
+      for (const note of fixture.notes)
+        result.current.onObservation({
+          time: 14 + (note.tick - fixture.startTick) / 960 + 0.04 + 0.01,
+          midi: note.midi,
+          confidence: 0.99,
+          rms: 0.2,
+        });
+      now = 18;
+      result.current.finish(true);
+    });
+    expect(result.current.review).toMatchObject({ latencyMs: 40, latencySource: 'reported' });
+    await act(async () => {});
+    // The refined result keeps the recording's finer timing (12 ms), not its 70 ms skew.
+    const deltas = result.current.review!.notes.map((n) => n.delta);
+    expect(deltas.every((delta) => delta !== null && Math.abs(delta - 10) <= 3)).toBe(true);
+    expect(result.current.review).toMatchObject({ calibrated: false, pitchAccuracy: 100 });
+    analyse.mockRestore();
+  });
+});
+
 describe('gym take retention', () => {
   it('automatically saves one finalized result with the settings captured at the start', async () => {
     const { starterExercises } = await import('../../src/music/exerciseCatalog');

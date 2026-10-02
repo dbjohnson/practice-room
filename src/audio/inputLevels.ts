@@ -4,11 +4,8 @@ export function amplitudeToDb(amplitude: number): number {
     : -60;
 }
 
-export function measureInput(samples: Float32Array) {
-  let peak = 0;
-  for (const sample of samples) peak = Math.max(peak, Math.abs(sample));
-  return { peak, peakDb: amplitudeToDb(peak), clipped: peak >= 0.98 };
-}
+/** Sample peaks at or above this are treated as clipping. */
+export const CLIP_PEAK = 0.98;
 
 export function levelGuidance(peakDb: number, clipped: boolean) {
   if (clipped)

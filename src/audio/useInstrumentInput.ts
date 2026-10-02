@@ -2,9 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { InputStatus, Observation } from '../domain/types';
 import { audioAccessError } from './audioDevices';
 import { openInstrumentCapture } from './instrumentCapture';
-import { measureInput } from './inputLevels';
-import { OnsetTracker } from './onsets';
-import { estimatePitch } from './pitch';
+import { amplitudeToDb } from './inputLevels';
 import { StablePitch } from './tuner';
 import { useInputCalibration } from './useInputCalibration';
 import { recordInstrument } from './recordInstrument';
@@ -28,6 +26,7 @@ const initial: InputStatus = {
   deviceLabel: '',
   channelCount: 0,
   channel: 0,
+  latencyMs: 0,
 };
 type Capture = Awaited<ReturnType<typeof openInstrumentCapture>>;
 
@@ -42,10 +41,7 @@ export function useInstrumentInput(onObservation: (observation: Observation) => 
   latest.current = onObservation;
   const resources = useRef<{
     capture: Capture;
-    timer: number;
-    tracker: OnsetTracker;
     stable: StablePitch;
-    clipUntil: number;
     ended: () => void;
   } | null>(null);
   const generation = useRef(0);
@@ -53,7 +49,6 @@ export function useInstrumentInput(onObservation: (observation: Observation) => 
     const current = resources.current;
     resources.current = null;
     if (current) {
-      window.clearInterval(current.timer);
       current.capture.track.removeEventListener('ended', current.ended);
       current.capture.close();
     }
@@ -86,20 +81,12 @@ export function useInstrumentInput(onObservation: (observation: Observation) => 
           });
         };
         capture.track.addEventListener('ended', ended);
-        const current = {
-          capture,
-          timer: 0,
-          tracker: new OnsetTracker(),
-          stable: new StablePitch(),
-          clipUntil: 0,
-          ended,
-        };
+        const current = { capture, stable: new StablePitch(), ended };
         resources.current = current;
         const channel = Math.max(0, Math.min(capture.channelCount - 1, preferredChannel));
         capture.selectChannel(channel);
         capture.setGain(gainRef.current);
         writeLocal('input-connection', { deviceId: capture.deviceId, channel });
-        const buffer = new Float32Array(capture.analyser.fftSize);
         setStatus({
           ...initial,
           state: 'ready',
@@ -107,32 +94,32 @@ export function useInstrumentInput(onObservation: (observation: Observation) => 
           deviceLabel: capture.label,
           channelCount: capture.channelCount,
           channel,
+          latencyMs: Math.round(capture.inputLatency * 1000),
         });
         let lastMeterUpdate = -Infinity;
-        current.timer = window.setInterval(() => {
-          capture.analyser.getFloatTimeDomainData(buffer);
-          const pitch = estimatePitch(buffer, capture.context.sampleRate);
-          const levels = measureInput(buffer);
-          const now = performance.now() / 1000;
-          if (levels.clipped) current.clipUntil = now + 1;
-          const clipped = now < current.clipUntil;
-          const observation = current.tracker.observe(
-            clipped ? { ...pitch, confidence: 0 } : pitch,
-            now - buffer.length / capture.context.sampleRate / 2,
-          );
-          if (observation) latest.current(observation);
-          const tunerMidi = current.stable.update(pitch, clipped);
-          if (now - lastMeterUpdate < 0.1) return;
-          lastMeterUpdate = now;
+        let peak = 0;
+        // Notes are detected on the audio thread; the meter and tuner follow at 10 Hz.
+        capture.listen((message) => {
+          if (message.type === 'observation') {
+            latest.current(message.observation);
+            return;
+          }
+          const { frame } = message;
+          peak = Math.max(peak, frame.peak);
+          const tunerMidi = current.stable.update(frame, frame.clipped);
+          if (frame.time - lastMeterUpdate < 0.1) return;
+          lastMeterUpdate = frame.time;
+          const peakDb = amplitudeToDb(peak);
+          peak = 0;
           setStatus((previous) => ({
             ...previous,
-            peakDb: levels.peakDb,
-            clipped,
-            midi: pitch.midi,
+            peakDb,
+            clipped: frame.clipped,
+            midi: frame.midi,
             tunerMidi,
-            confidence: pitch.confidence,
+            confidence: frame.confidence,
           }));
-        }, 45);
+        });
       } catch (error) {
         if (token === generation.current)
           setStatus({ ...initial, state: 'error', error: audioAccessError(error) });
@@ -145,9 +132,7 @@ export function useInstrumentInput(onObservation: (observation: Observation) => 
     if (!current) return;
     current.capture.selectChannel(channel);
     writeLocal('input-connection', { deviceId: current.capture.deviceId, channel });
-    current.tracker = new OnsetTracker();
     current.stable = new StablePitch();
-    current.clipUntil = 0;
     setStatus((previous) => ({
       ...previous,
       channel,

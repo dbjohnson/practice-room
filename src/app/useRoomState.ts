@@ -145,6 +145,7 @@ export function useRoomState() {
   });
   const api = useRef<AlphaTabApi | null>(null);
   const inputLatency = useRef<number | null>(null);
+  const reportedLatency = useRef<number | null>(null);
   const takeSource = useRef<'microphone' | 'midi'>('microphone');
   const recordAudio = useRef<RecordAudio | null>(null);
   const takePlayback = useTakePlayback(api, notify);
@@ -193,6 +194,7 @@ export function useRoomState() {
     notify,
     recordAudio,
     inputLatency,
+    reportedLatency,
     source: takeSource,
     swing,
     transpose,
@@ -207,9 +209,11 @@ export function useRoomState() {
   takeSource.current = midiReady ? 'midi' : 'microphone';
   // MIDI has nothing to record, and its only delay is the output's.
   recordAudio.current = midiReady ? null : input.record;
-  const outputLatency = () =>
-    Math.round(reportedOutputLatency(playerContext(api.current)) * 1000) || null;
-  inputLatency.current = midiReady ? outputLatency() : (input.calibration?.offsetMs ?? null);
+  // A saved calibration wins. Otherwise use the delay the browser reports for the
+  // player's output and this input, rather than grading latency as lateness.
+  inputLatency.current = midiReady ? null : (input.calibration?.offsetMs ?? null);
+  const outputMs = Math.round(reportedOutputLatency(playerContext(api.current)) * 1000);
+  reportedLatency.current = outputMs + (midiReady ? 0 : input.status.latencyMs) || null;
   const audioDevices = useAudioDevices();
   const midiOut = useMidiOut({
     api,

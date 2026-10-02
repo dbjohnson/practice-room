@@ -3,7 +3,7 @@ export class TransientDetector {
   private peaks: number[] = [];
   private baseline = 0;
   private lastAttack = -Infinity;
-  constructor(private readonly threshold = 0.008) {}
+  constructor(public threshold = 0.008) {}
 
   observe(rms: number, time: number): boolean {
     this.peaks.push(rms);

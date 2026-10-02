@@ -63,7 +63,9 @@ export function LatencyCalibration() {
       <p className="muted-copy">
         This measures a signed timing offset, including your playing and browser recording timing,
         rather than hardware latency alone. Negative means attacks were recorded early. Your saved
-        correction is never applied during calibration.
+        correction is never applied during calibration. To measure the hardware alone, run a cable
+        from your interface’s output to this input and let the clicks play through it. Until you
+        calibrate, takes use the delay your browser reports.
       </p>
       <div className="calibration-pattern" aria-label="Four bars, eight notes per bar">
         {Array.from({ length: 4 }, (_, bar) => (
@@ -116,6 +118,9 @@ export function LatencyCalibration() {
           )}
           <p>
             {result.matched}/32 attacks matched · {result.jitterMs} ms variation. {result.reason}
+            {result.reliable && result.matched >= 30 && result.jitterMs <= 3
+              ? ' This is steadier than playing: it looks like a loopback cable, so it measures the hardware alone.'
+              : ''}
           </p>
           <svg
             viewBox="0 0 640 48"

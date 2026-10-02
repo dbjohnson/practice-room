@@ -12,7 +12,7 @@ export default defineConfig({
         'src/audio/midiInput.ts',
         'src/audio/midiOut.ts',
         'src/audio/pitch.ts',
-        'src/audio/onsets.ts',
+        'src/audio/inputAnalyzer.ts',
         'src/domain/milestones.ts',
       ],
       reporter: ['text', 'html'],

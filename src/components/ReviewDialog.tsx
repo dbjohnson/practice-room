@@ -98,13 +98,20 @@ export function ReviewDialog() {
               <strong>{take.coverage}%</strong>
               <span>
                 Timing evidence: {take.timingCoverage ?? take.coverage}% ·{' '}
-                {take.origin === 'midi'
-                  ? take.latencyMs
-                    ? `MIDI · ${take.latencyMs} ms output delay reported by browser`
-                    : 'MIDI · output delay unknown'
-                  : take.calibrated
-                    ? `calibrated · ${-(take.latencyMs ?? 0)} ms correction`
+                {take.calibrated
+                  ? `calibrated · ${-(take.latencyMs ?? 0)} ms correction`
+                  : take.latencySource === 'reported'
+                    ? `${take.latencyMs} ms delay reported by browser · not calibrated`
                     : 'input not calibrated'}
+                {take.latencySource && take.placementMs != null && (
+                  <>
+                    {' · '}
+                    {Math.abs(take.placementMs) < 5
+                      ? 'on the beat on average'
+                      : `${Math.abs(Math.round(take.placementMs))} ms ${take.placementMs > 0 ? 'behind' : 'ahead'} on average`}
+                    {take.spreadMs != null && ` ±${Math.round(take.spreadMs)} ms`}
+                  </>
+                )}
               </span>
             </div>
           </div>
@@ -229,7 +236,7 @@ export function ReviewDialog() {
                   ? 'MIDI reports the exact keys you played, chords included. Bends, percussion and other expressive notation remain ungraded.'
                   : take.calibrated
                     ? 'Single-note estimates use your input calibration. Chords, bends and ambiguous input remain ungraded.'
-                    : 'Single-note estimates include unmeasured device latency. Calibrate in Input settings to compensate. Chords, bends and ambiguous input remain ungraded.'}
+                    : 'Single-note estimates use the delay your browser reports, which is often close for a wired interface and wrong for Bluetooth. Calibrate in Input settings for a measured figure. Chords, bends and ambiguous input remain ungraded.'}
             </span>
           </div>
           <div className="modal-actions">

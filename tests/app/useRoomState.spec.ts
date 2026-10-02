@@ -30,6 +30,8 @@ function captureFixture() {
   const capture = {
     track: new EventTarget(),
     analyser: { fftSize: 4096, getFloatTimeDomainData: vi.fn() },
+    listen: vi.fn(),
+    inputLatency: 0,
     context: { sampleRate: 48000 },
     deviceId: 'test-interface',
     label: 'Test interface',
@@ -137,6 +139,46 @@ describe('recording with an audio interface', () => {
     // localStorage persistence dispatches its browser storage event asynchronously.
     act(() => vi.runOnlyPendingTimers());
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('detected notes and reported latency', () => {
+  it('feeds worklet notes to the take and removes the delay the browser reports', async () => {
+    const { result, capture, player, startTick, notes } = await setup();
+    await act(async () => result.current.halt());
+    const listener = capture.listen.mock.calls[0][0];
+    act(() =>
+      listener({
+        type: 'frame',
+        frame: { time: 10.2, midi: 40.02, confidence: 0.99, rms: 0.2, peak: 0.5, clipped: false },
+      }),
+    );
+    expect(result.current.input.status.peakDb).toBeCloseTo(-6.02, 1);
+    // 30 ms of output delay reported for the player; nothing calibrated.
+    (player as unknown as { player: unknown }).player = {
+      output: { context: { currentTime: 1, baseLatency: 0.01, outputLatency: 0.02 } },
+    };
+    act(() => result.current.updatePlayer({ bar: 2 }));
+    act(() => {
+      now = 20;
+      result.current.play();
+      now = 24;
+      result.current.takes.onPosition(startTick, 60);
+      listener({
+        type: 'observation',
+        observation: { time: 24.05, midi: notes[0].midi, confidence: 0.99, rms: 0.2 },
+      });
+      now = 24.5;
+      result.current.halt();
+    });
+    const review = result.current.takes.review ?? result.current.takes.passResult;
+    expect(review?.notes[0]).toMatchObject({ status: 'matched', delta: 20 });
+    expect(review).toMatchObject({
+      latencyMs: 30,
+      latencySource: 'reported',
+      calibrated: false,
+      placementMs: 20,
+    });
   });
 });
 

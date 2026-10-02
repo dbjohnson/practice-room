@@ -1,14 +1,8 @@
 import { expect, it } from 'vitest';
-import { amplitudeToDb, levelGuidance, measureInput } from '../../src/audio/inputLevels';
-it('measures true sample peak on the selected channel, including negative peaks', () => {
-  const level = measureInput(new Float32Array([0, 0.25, -0.5, 0.1]));
-  expect(level.peak).toBe(0.5);
-  expect(level.peakDb).toBeCloseTo(-6.0206, 3);
-  expect(level.clipped).toBe(false);
-  expect(measureInput(new Float32Array([-0.99])).clipped).toBe(true);
-});
+import { amplitudeToDb, levelGuidance } from '../../src/audio/inputLevels';
 it('keeps silence and invalid levels at the meter floor', () => {
-  expect(measureInput(new Float32Array(4096)).peakDb).toBe(-60);
+  expect(amplitudeToDb(0)).toBe(-60);
+  expect(amplitudeToDb(0.5)).toBeCloseTo(-6.0206, 3);
   expect(amplitudeToDb(NaN)).toBe(-60);
   expect(amplitudeToDb(2)).toBe(0);
 });

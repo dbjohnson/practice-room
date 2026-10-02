@@ -27,6 +27,8 @@ export function summarize(notes: NoteResult[]) {
         }, 0) / timed.length,
       )
     : null;
+  const deltas = timed.filter((note) => note.delta !== null).map((note) => note.delta!);
+  const placement = median(deltas);
   return {
     pitchAccuracy,
     timingScore,
@@ -35,9 +37,10 @@ export function summarize(notes: NoteResult[]) {
       coverage >= 60 && timingCoverage >= 60 && pitchAccuracy !== null && timingScore !== null
         ? Math.round((pitchAccuracy + timingScore) / 2)
         : null,
-    timingMs: median(
-      timed.filter((note) => note.delta !== null).map((note) => Math.abs(note.delta!)),
-    ),
+    timingMs: median(deltas.map((delta) => Math.abs(delta))),
+    // Where the player sits against the beat, and how consistently.
+    placementMs: placement,
+    spreadMs: placement === null ? null : median(deltas.map((d) => Math.abs(d - placement))),
     coverage,
   };
 }
@@ -187,13 +190,24 @@ export function coaching(take: Take) {
   if (
     (take.timingScore !== undefined && take.timingScore !== null && take.timingScore < 90) ||
     (take.timingMs !== null && take.timingMs > 30)
-  )
+  ) {
+    // With a known latency, even playing that sits off the beat is worth naming.
+    const placement = take.latencySource ? (take.placementMs ?? null) : null;
+    const steady =
+      placement !== null && Math.abs(placement) > 35 && (take.spreadMs ?? Infinity) <= 35;
     return {
-      title: 'Find a steady landing.',
-      body: 'Some entries sit away from the pulse. Try the transition with a click, then bring the band back. Timing is an estimate on this setup.',
+      title: steady
+        ? placement > 0
+          ? 'Lean into the beat.'
+          : 'Let the beat come to you.'
+        : 'Find a steady landing.',
+      body: steady
+        ? `Your notes are even, but sit about ${Math.abs(Math.round(placement))} ms ${placement > 0 ? 'behind' : 'ahead of'} the band. Try it with a click and aim for the ${placement > 0 ? 'front' : 'back'} edge of each beat${take.latencySource === 'reported' ? '. If this seems wrong, calibrate your input timing' : ''}.`
+        : 'Some entries sit away from the pulse. Try the transition with a click, then bring the band back. Timing is an estimate on this setup.',
       action: 'Practice the transition',
       kind: 'timing' as const,
     };
+  }
   return {
     title: 'Ready for another small step?',
     body: 'Keep the same phrase and try four BPM faster. A comfortable, repeatable take matters more than a single perfect pass.',

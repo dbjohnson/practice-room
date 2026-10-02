@@ -40,6 +40,8 @@ describe('confidence-aware take feedback', () => {
     expect(summarize(result)).toEqual({
       pitchAccuracy: 100,
       timingMs: 27.5,
+      placementMs: -2.5,
+      spreadMs: 27.5,
       coverage: 100,
       timingScore: 98,
       timingCoverage: 100,
@@ -54,6 +56,8 @@ describe('confidence-aware take feedback', () => {
     expect(summarize([])).toEqual({
       pitchAccuracy: null,
       timingMs: null,
+      placementMs: null,
+      spreadMs: null,
       coverage: 0,
       timingScore: null,
       timingCoverage: 0,
@@ -63,7 +67,7 @@ describe('confidence-aware take feedback', () => {
   it('separates wrong pitch and missed notes when a signal was present', () => {
     const result = assess([note(0), note(960), note(1920)], [heard(0), heard(1.01, 61)], 60, 0);
     expect(result.map((n) => n.status)).toEqual(['matched', 'pitch', 'missed']);
-    expect(summarize(result)).toEqual({
+    expect(summarize(result)).toMatchObject({
       pitchAccuracy: 33,
       timingMs: 5,
       coverage: 100,
@@ -212,5 +216,22 @@ describe('ordered note alignment', () => {
       { ...note(960), time: 0.5 },
     ];
     expect(assess(targets, [heard(0), heard(0.5)], 60, 0).map((n) => n.delta)).toEqual([0, 0]);
+  });
+});
+
+describe('placement against the beat', () => {
+  it('reports steady dragging separately from uneven timing and coaches it', () => {
+    const targets = Array.from({ length: 8 }, (_, i) => ({ ...note(i * 480), midi: 60 + (i % 3) }));
+    const jitter = [4, -6, 2, 0, -3, 5, -2, 1];
+    // 60 ms of device latency, and a player who sits 50 ms behind the band.
+    const played = targets.map((t, i) => heard(i * 0.25 + 0.11 + jitter[i] / 1000, t.midi));
+    const summary = summarize(assess(targets, played, 120, 0, 60));
+    expect(Math.abs(summary.placementMs! - 50)).toBeLessThan(2);
+    expect(summary.spreadMs).toBeLessThan(5);
+    const advice = coaching(take({ ...summary, latencySource: 'calibrated' }));
+    expect(advice).toMatchObject({ kind: 'timing', title: 'Lean into the beat.' });
+    expect(advice.body).toMatch(/5[01] ms behind/);
+    // Without a known latency the same numbers are not blamed on the player.
+    expect(coaching(take({ ...summary })).title).toBe('Find a steady landing.');
   });
 });
