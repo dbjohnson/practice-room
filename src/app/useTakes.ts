@@ -22,9 +22,9 @@ interface TakeOptions {
   recordAudio?: React.RefObject<RecordAudio | null>;
   swing?: number | null;
   transpose?: number;
-  /** The player's saved timing calibration for this input, in milliseconds. */
+  /** Latency measured with a loopback cable for this input, in milliseconds. */
   inputLatency?: React.RefObject<number | null>;
-  /** Output plus input delay as the browser reports it, used when nothing is calibrated. */
+  /** Output plus input delay as the browser reports it, used when nothing is measured. */
   reportedLatency?: React.RefObject<number | null>;
   /** Which kind of instrument is connected, read when a take begins. */
   source?: React.RefObject<'microphone' | 'midi'>;
@@ -178,7 +178,7 @@ export function useTakes(options: TakeOptions) {
       calibrated: !midi && captured.latencyMs !== null,
       latencyMs: captured.latencyMs ?? captured.reportedMs ?? undefined,
       ...(captured.latencyMs !== null
-        ? { latencySource: 'calibrated' as const }
+        ? { latencySource: 'measured' as const }
         : captured.reportedMs !== null
           ? { latencySource: 'reported' as const }
           : {}),
@@ -199,12 +199,10 @@ export function useTakes(options: TakeOptions) {
       async (blob) => {
         // The WAV was already shifted by the saved offset. Never subtract it a second time.
         let recorded = await analyseRecordedTake(blob);
-        // A calibration is measured on the recording itself. Without one, the recording's
-        // clock is unknown, so line it up with the attacks heard live on the audio clock.
-        if (captured.latencyMs === null) {
-          const skew = recordingSkew(recorded, observations);
-          if (skew !== null) recorded = recorded.map((o) => ({ ...o, time: o.time - skew }));
-        }
+        // Latency is known on the audio clock, where live attacks are stamped. The
+        // recorder runs on its own clock, so line its attacks up with the same ones heard live.
+        const skew = recordingSkew(recorded, observations);
+        if (skew !== null) recorded = recorded.map((o) => ({ ...o, time: o.time - skew }));
         const notes = assess(expected, recorded, opts.tempo, captured.startTick);
         return { ...result, notes, ...summarize(notes) };
       },

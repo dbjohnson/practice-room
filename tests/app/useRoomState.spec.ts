@@ -182,6 +182,75 @@ describe('detected notes and reported latency', () => {
   });
 });
 
+describe('measuring latency with a cable', () => {
+  it('times clicks through the player output and uses the result for this interface', async () => {
+    const { result, capture, player, startTick, notes } = await setup();
+    await act(async () => result.current.halt());
+    const listener = capture.listen.mock.calls[0][0];
+    const context = {
+      currentTime: 5,
+      baseLatency: 0.01,
+      outputLatency: 0.02,
+      resume: vi.fn(async () => {}),
+      destination: {},
+      createOscillator: () => ({ frequency: {}, connect: vi.fn(), start: vi.fn(), stop: vi.fn() }),
+      createGain: () => ({ gain: {}, connect: vi.fn() }),
+    };
+    (player as unknown as { player: unknown }).player = { output: { context } };
+    act(() => result.current.updatePlayer({ bar: 2 }));
+    expect(result.current.latency.known()).toEqual({ ms: 30, source: 'reported' });
+    now = 30;
+    let measuring!: Promise<void>;
+    await act(async () => {
+      measuring = result.current.latency.measure();
+      await Promise.resolve();
+    });
+    expect(result.current.latency.measuring).toBe(true);
+    // Twelve clicks from 30.3 s, each heard 45 ms later through the cable.
+    for (let i = 0; i < 12; i++)
+      listener({
+        type: 'observation',
+        observation: { time: 30.3 + i * 0.35 + 0.045, midi: null, confidence: 0, rms: 0.3 },
+      });
+    await act(async () => {
+      vi.advanceTimersByTime(6000);
+      await measuring;
+    });
+    expect(result.current.latency.measuring).toBe(false);
+    expect(result.current.latency.measured).toMatchObject({
+      deviceId: 'test-interface',
+      channel: 0,
+      ms: 45,
+    });
+    expect(result.current.latency.known()).toEqual({ ms: 45, source: 'measured' });
+    act(() => {
+      now = 40;
+      result.current.play();
+      now = 44;
+      result.current.takes.onPosition(startTick, 60);
+      listener({
+        type: 'observation',
+        observation: { time: 44.05, midi: notes[0].midi, confidence: 0.99, rms: 0.2 },
+      });
+      now = 44.5;
+      result.current.halt();
+    });
+    const review = result.current.takes.review ?? result.current.takes.passResult;
+    expect(review).toMatchObject({
+      latencyMs: 45,
+      latencySource: 'measured',
+      calibrated: true,
+      placementMs: 5,
+    });
+    // Another channel has not been measured, so it falls back to the reported delay.
+    act(() => result.current.input.selectChannel(1));
+    expect(result.current.latency.known()).toEqual({ ms: 30, source: 'reported' });
+    act(() => result.current.latency.forget());
+    act(() => result.current.input.selectChannel(0));
+    expect(result.current.latency.measured).toBeNull();
+  });
+});
+
 describe('key transposition state', () => {
   it('always transposes the source, preserves swing, and resets when changing songs', async () => {
     const { result } = renderHook(useRoomState);

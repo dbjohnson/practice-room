@@ -90,8 +90,11 @@ export interface Take {
   duration: number;
   calibrated: boolean;
   latencyMs?: number;
-  /** Whether the removed delay was calibrated by the player or reported by the browser. */
-  latencySource?: 'calibrated' | 'reported';
+  /**
+   * Whether the removed delay was measured with a cable or reported by the browser.
+   * 'calibrated' marks older takes that used a play-along timing calibration.
+   */
+  latencySource?: 'measured' | 'reported' | 'calibrated';
   /** Median signed distance from the beat: negative is ahead, positive behind. */
   placementMs?: number | null;
   /** Median distance from the player's own average placement. */

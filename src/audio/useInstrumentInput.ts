@@ -4,7 +4,6 @@ import { audioAccessError } from './audioDevices';
 import { openInstrumentCapture } from './instrumentCapture';
 import { amplitudeToDb } from './inputLevels';
 import { StablePitch } from './tuner';
-import { useInputCalibration } from './useInputCalibration';
 import { recordInstrument } from './recordInstrument';
 import { readLocal, writeLocal } from '../storage/library';
 
@@ -45,6 +44,12 @@ export function useInstrumentInput(onObservation: (observation: Observation) => 
     ended: () => void;
   } | null>(null);
   const generation = useRef(0);
+  const observers = useRef(new Set<(observation: Observation) => void>());
+  /** Also receive detected notes until the returned function is called. */
+  const observe = useCallback((handler: (observation: Observation) => void) => {
+    observers.current.add(handler);
+    return () => void observers.current.delete(handler);
+  }, []);
   const release = useCallback(() => {
     const current = resources.current;
     resources.current = null;
@@ -102,6 +107,7 @@ export function useInstrumentInput(onObservation: (observation: Observation) => 
         capture.listen((message) => {
           if (message.type === 'observation') {
             latest.current(message.observation);
+            observers.current.forEach((handler) => handler(message.observation));
             return;
           }
           const { frame } = message;
@@ -181,6 +187,5 @@ export function useInstrumentInput(onObservation: (observation: Observation) => 
     setGainState(value);
     writeLocal('input-gain', value);
   };
-  const calibration = useInputCalibration(resources, status.channel);
-  return { status, start, stop, selectChannel, record, gain, setGain, ...calibration };
+  return { status, start, stop, selectChannel, record, gain, setGain, observe };
 }

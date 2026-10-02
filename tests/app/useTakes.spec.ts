@@ -178,7 +178,7 @@ describe('recording lifecycle', () => {
   });
 });
 
-describe('calibrated take alignment', () => {
+describe('measured take alignment', () => {
   it.each([-45, 80])(
     'applies a frozen %i ms offset exactly once to observations and audio',
     async (offset) => {
@@ -209,7 +209,11 @@ describe('calibrated take alignment', () => {
         result.current.finish();
       });
       await act(async () => {});
-      expect(result.current.review).toMatchObject({ calibrated: true, latencyMs: offset });
+      expect(result.current.review).toMatchObject({
+        calibrated: true,
+        latencyMs: offset,
+        latencySource: 'measured',
+      });
       expect(result.current.review?.notes).toMatchObject([{ status: 'matched', delta: 10 }]);
       expect(finish.mock.calls[0][0]).toBeCloseTo(14 + offset / 1000);
       expect(finish.mock.calls[0][1]).toBeCloseTo(14.4 + offset / 1000);
@@ -217,7 +221,7 @@ describe('calibrated take alignment', () => {
   );
 });
 
-describe('uncalibrated take alignment', () => {
+describe('recorded take alignment', () => {
   it('uses the reported delay and lines the recording up with the attacks heard live', async () => {
     const fixture = takeFixture();
     const blob = new Blob(['take']);

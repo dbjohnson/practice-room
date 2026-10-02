@@ -106,7 +106,7 @@ export function MidiConnection() {
       )}
       <p className="setup-hint">
         Drum pads and percussion parts are not graded yet. MIDI takes are not recorded as audio.
-        Timing uses the output delay your browser reports; the click calibration above applies only
+        Timing uses the output delay your browser reports; the cable measurement above applies only
         to an audio interface.
       </p>
     </section>

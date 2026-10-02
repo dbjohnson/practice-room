@@ -202,7 +202,7 @@ export function coaching(take: Take) {
           : 'Let the beat come to you.'
         : 'Find a steady landing.',
       body: steady
-        ? `Your notes are even, but sit about ${Math.abs(Math.round(placement))} ms ${placement > 0 ? 'behind' : 'ahead of'} the band. Try it with a click and aim for the ${placement > 0 ? 'front' : 'back'} edge of each beat${take.latencySource === 'reported' ? '. If this seems wrong, calibrate your input timing' : ''}.`
+        ? `Your notes are even, but sit about ${Math.abs(Math.round(placement))} ms ${placement > 0 ? 'behind' : 'ahead of'} the band. Try it with a click and aim for the ${placement > 0 ? 'front' : 'back'} edge of each beat${take.latencySource === 'reported' ? '. If this seems wrong, measure your latency with a cable' : ''}.`
         : 'Some entries sit away from the pulse. Try the transition with a click, then bring the band back. Timing is an estimate on this setup.',
       action: 'Practice the transition',
       kind: 'timing' as const,

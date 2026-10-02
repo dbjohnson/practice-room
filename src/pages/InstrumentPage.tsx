@@ -11,7 +11,7 @@ import { useRoom } from '../app/RoomContext';
 import { InterfaceConnection } from '../components/InterfaceConnection';
 import { InputLevelMeter } from '../components/InputLevelMeter';
 import { TunerPanel } from '../components/TunerPanel';
-import { LatencyCalibration } from '../components/LatencyCalibration';
+import { LatencyPanel } from '../components/LatencyPanel';
 import { InputGain } from '../components/InputGain';
 import { MidiConnection } from '../components/MidiConnection';
 
@@ -70,7 +70,7 @@ export function InstrumentPage() {
           <InterfaceConnection />
           <InputGain />
           <InputLevelMeter status={r.input.status} />
-          <LatencyCalibration />
+          <LatencyPanel />
           <MidiConnection />
         </div>
         <TunerPanel status={r.input.status} />

@@ -98,11 +98,13 @@ export function ReviewDialog() {
               <strong>{take.coverage}%</strong>
               <span>
                 Timing evidence: {take.timingCoverage ?? take.coverage}% ·{' '}
-                {take.calibrated
-                  ? `calibrated · ${-(take.latencyMs ?? 0)} ms correction`
+                {take.latencySource === 'measured'
+                  ? `${take.latencyMs} ms latency measured with a cable`
                   : take.latencySource === 'reported'
-                    ? `${take.latencyMs} ms delay reported by browser · not calibrated`
-                    : 'input not calibrated'}
+                    ? `${take.latencyMs} ms latency reported by browser`
+                    : take.calibrated
+                      ? `calibrated · ${-(take.latencyMs ?? 0)} ms correction`
+                      : 'latency unknown'}
                 {take.latencySource && take.placementMs != null && (
                   <>
                     {' · '}
@@ -235,8 +237,8 @@ export function ReviewDialog() {
                 : take.origin === 'midi'
                   ? 'MIDI reports the exact keys you played, chords included. Bends, percussion and other expressive notation remain ungraded.'
                   : take.calibrated
-                    ? 'Single-note estimates use your input calibration. Chords, bends and ambiguous input remain ungraded.'
-                    : 'Single-note estimates use the delay your browser reports, which is often close for a wired interface and wrong for Bluetooth. Calibrate in Input settings for a measured figure. Chords, bends and ambiguous input remain ungraded.'}
+                    ? 'Single-note estimates use your measured latency. Chords, bends and ambiguous input remain ungraded.'
+                    : 'Single-note estimates use the delay your browser reports, which is often close for a wired interface and wrong for Bluetooth. Measure it with a cable in Input settings for an exact figure. Chords, bends and ambiguous input remain ungraded.'}
             </span>
           </div>
           <div className="modal-actions">

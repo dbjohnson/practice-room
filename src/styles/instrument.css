@@ -726,66 +726,32 @@
   fill: var(--accent);
   stroke: var(--accent);
 }
-.latency-calibration {
+.latency-panel {
   padding: 22px 25px;
   border-top: 1px solid var(--border);
 }
-.latency-calibration h2 {
+.latency-panel h2 {
   display: flex;
   align-items: center;
   gap: 8px;
   font-size: 15px;
 }
-.latency-calibration p {
+.latency-panel p {
   font-size: 12px;
   line-height: 1.7;
   margin: 12px 0;
 }
-.calibration-pattern {
-  display: grid;
-  gap: 5px;
-  margin: 16px 0;
+.latency-readout strong {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  font-size: 22px;
+  font-weight: 600;
 }
-.calibration-pattern > div {
-  display: grid;
-  grid-template-columns: 20px repeat(8, 1fr);
-  gap: 4px;
-  align-items: center;
-  text-align: center;
+.latency-readout small {
   font-size: 11px;
-}
-.calibration-pattern i {
-  font-style: normal;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 6px 0;
+  font-weight: 500;
   color: var(--muted);
-}
-.calibration-pattern .current {
-  background: var(--accent);
-  color: var(--paper);
-}
-.calibration-pattern .played {
-  background: var(--accent-soft);
-}
-.calibration-result {
-  background: var(--accent-faint);
-  border-radius: 7px;
-  padding: 14px;
-  margin-bottom: 14px;
-}
-.calibration-result svg {
-  width: 100%;
-  display: block;
-  margin: 10px 0;
-}
-.calibration-guide {
-  stroke: var(--muted);
-  stroke-width: 2;
-}
-.calibration-attack {
-  stroke: var(--accent);
-  stroke-width: 2;
 }
 /* Input setup uses denser controls than the music workspace. */
 .instrument-page {
@@ -833,8 +799,7 @@
   align-items: start;
   grid-template-columns: minmax(300px, 1fr) minmax(320px, 1fr);
 }
-.instrument-page
-  :is(.interface-connection, .input-level-panel, .tuner-panel, .latency-calibration) {
+.instrument-page :is(.interface-connection, .input-level-panel, .tuner-panel, .latency-panel) {
   padding: 16px;
 }
 .instrument-page .setup-number {

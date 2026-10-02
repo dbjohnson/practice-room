@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { recordedObservations } from '../../src/audio/recordedAssessment';
-import {
-  calibrationPattern,
-  detectTransients,
-  estimateLatency,
-} from '../../src/audio/latencyCalibration';
-import { assess } from '../../src/audio/assessment';
 
 const rate = 48000;
 function recording(times: number[], duration = 0.2) {
@@ -41,27 +35,6 @@ describe('recorded take grading', () => {
     const notes = recordedObservations(recording(times, 0.07), rate);
     expect(notes).toHaveLength(16);
     notes.forEach((note, i) => expect(Math.abs(note.time - times[i])).toBeLessThan(0.004));
-  });
-  it.each([-45, 80])('calibrates %i ms from raw audio and applies that offset once', (offset) => {
-    const raw = recording(calibrationPattern.map((t) => t + offset / 1000));
-    const estimate = estimateLatency(detectTransients(raw, rate));
-    expect(estimate.reliable).toBe(true);
-    expect(estimate.offsetMs).toBeCloseTo(offset, -1);
-    // Calibration has no saved-offset input. Repeating with the same raw PCM is unchanged.
-    expect(estimateLatency(detectTransients(raw, rate))).toEqual(estimate);
-    const take = recording([0.5 + offset / 1000]);
-    // Take audio starts at playback origin + measured offset, removing it exactly once.
-    const shift = Math.round((estimate.offsetMs * rate) / 1000);
-    const aligned = shift >= 0 ? take.slice(shift) : new Float32Array(take.length - shift);
-    if (shift < 0) aligned.set(take, -shift);
-    const notes = assess(
-      [{ tick: 480, midi: 57, bar: 1, beatId: 0, eligible: true }],
-      recordedObservations(aligned, rate),
-      60,
-      0,
-    );
-    expect(notes[0].status).toBe('matched');
-    expect(Math.abs(notes[0].delta!)).toBeLessThanOrEqual(3);
   });
   it('does not invent notes for silence or clipped input', () => {
     expect(recordedObservations(new Float32Array(rate), rate)).toEqual([]);

@@ -1,5 +1,5 @@
 import type { Observation } from '../domain/types';
-import { detectTransients } from './latencyCalibration';
+import { detectTransients } from './transients';
 import { estimatePitch } from './pitch';
 
 /** Locate attacks in PCM, then identify pitch without moving the attack timestamp. */

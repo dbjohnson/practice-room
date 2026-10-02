@@ -9,10 +9,10 @@ import { exercisePiece } from '../music/exerciseScore';
 import type { GymSet, GymView } from '../domain/gym';
 import { useLibrary } from './useLibrary';
 import { useTakes } from './useTakes';
+import { useLatency } from './useLatency';
 import { useInstrumentInput } from '../audio/useInstrumentInput';
 import { useMidiInput } from '../audio/useMidiInput';
 import { useMidiOut } from '../audio/useMidiOut';
-import { playerContext, reportedOutputLatency } from '../audio/playerLatency';
 import { useAudioDevices } from '../audio/useAudioDevices';
 import { normalizeRange } from '../time/timeline';
 import { DEFAULT_MIX_EFFECTS, type MixEffects } from '../audio/PlaybackEffects';
@@ -209,11 +209,17 @@ export function useRoomState() {
   takeSource.current = midiReady ? 'midi' : 'microphone';
   // MIDI has nothing to record, and its only delay is the output's.
   recordAudio.current = midiReady ? null : input.record;
-  // A saved calibration wins. Otherwise use the delay the browser reports for the
-  // player's output and this input, rather than grading latency as lateness.
-  inputLatency.current = midiReady ? null : (input.calibration?.offsetMs ?? null);
-  const outputMs = Math.round(reportedOutputLatency(playerContext(api.current)) * 1000);
-  reportedLatency.current = outputMs + (midiReady ? 0 : input.status.latencyMs) || null;
+  // A cable measurement for this interface wins; otherwise the delay the browser reports
+  // for the player's output and this input. MIDI adds no input delay of its own.
+  const latency = useLatency({
+    api,
+    status: midiReady ? { ...input.status, state: 'off', latencyMs: 0 } : input.status,
+    observe: input.observe,
+    notify,
+  });
+  const known = latency.known();
+  inputLatency.current = known?.source === 'measured' ? known.ms : null;
+  reportedLatency.current = known?.source === 'reported' ? known.ms : null;
   const audioDevices = useAudioDevices();
   const midiOut = useMidiOut({
     api,
@@ -525,6 +531,7 @@ export function useRoomState() {
     input,
     midi,
     midiOut,
+    latency,
     inputConnected: connected,
     takePlayback,
     replayTake,

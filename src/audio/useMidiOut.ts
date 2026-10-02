@@ -4,7 +4,7 @@ import type { LoopRange } from '../domain/types';
 import { playbackRange, secondsBetween } from '../music/scoreTimeline';
 import { usePersistentState } from '../storage/usePersistentState';
 import { ticksToSeconds } from '../time/timeline';
-import { playerContext, reportedOutputLatency } from './playerLatency';
+import { playerContext, reportedOutputLatency } from './latency';
 import { midiAccessError, requestMidi, type MidiDevice } from './midiInput';
 import { fileEvents, MidiOutScheduler, type MidiRoute } from './midiOut';
 
