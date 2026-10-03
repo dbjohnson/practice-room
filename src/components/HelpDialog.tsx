@@ -15,9 +15,10 @@ export function HelpDialog() {
         <p>
           <Check size={17} />
           <span>
-            <strong>Working today</strong>Guitar Pro / MusicXML import, score and TAB, sampled
-            playback, loops, a mixer, local library, generated jams, audio-interface setup, a tuner,
-            experimental instrument detection and saved take history.
+            <strong>Working today</strong>Guitar Pro / MusicXML / MIDI import, catalogue search,
+            score and TAB, sampled playback, loops, a mixer, local library, generated jams,
+            audio-interface setup, a tuner, experimental instrument detection and saved take
+            history.
           </span>
         </p>
         <p>

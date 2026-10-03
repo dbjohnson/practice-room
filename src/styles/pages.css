@@ -1123,3 +1123,124 @@
   font-size: 11px;
   padding: 3px 4px;
 }
+.page-heading-actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.find-tabs {
+  margin-bottom: 18px;
+}
+.find-form {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.find-form .search-input {
+  flex: 1;
+}
+.find-form .search-input input {
+  width: 100%;
+}
+.find-results,
+.find-sources {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+.find-results li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 13px;
+  border: 1px solid var(--theme-border, #e0e5d9);
+  border-radius: 8px;
+}
+.find-results li > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.find-results strong {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.find-results span,
+.find-results small,
+.find-sources li {
+  font-size: 11px;
+  color: var(--secondary-fg, #7a8372);
+  line-height: 1.6;
+}
+.find-results small {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.find-results small.licence-open {
+  color: var(--accent);
+}
+.find-results .button {
+  flex-shrink: 0;
+}
+.find-sources li {
+  padding: 10px 13px;
+  border-radius: 8px;
+  background: var(--surface-soft, #f0f2e8);
+}
+.find-sources li.is-off {
+  opacity: 0.6;
+}
+.find-sources strong {
+  display: block;
+  font-size: 12px;
+  color: var(--ink);
+}
+.generate-form {
+  display: grid;
+  gap: 13px;
+}
+.generate-form textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid var(--theme-border, #dfe4d6);
+  border-radius: 6px;
+  background: var(--surface-raised, #fcfcf5);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.generate-ideas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.generate-ideas button {
+  padding: 5px 10px;
+  border: 1px solid var(--theme-border, #dfe4d6);
+  border-radius: 99px;
+  background: transparent;
+  color: var(--secondary-fg, #7a8372);
+  font-size: 11px;
+  cursor: pointer;
+}
+.generate-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.generate-options .segmented button {
+  text-transform: capitalize;
+}
+.generate-options > .button {
+  margin-left: auto;
+}

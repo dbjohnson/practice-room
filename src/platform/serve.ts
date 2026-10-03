@@ -1,7 +1,9 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { loadEnvFile } from 'node:process';
-import { emails, loadConfig, repository } from './config';
+import { pathToFileURL } from 'node:url';
+import type { RequestHandler } from 'express';
+import { emails, inside, loadConfig, repository } from './config';
 import { googleProvider } from './google';
 import { Sessions } from './sessions';
 import { createGateway } from './gateway';
@@ -15,9 +17,16 @@ if (!allowedEmails.size)
   throw new Error('GOOGLE_ALLOWED_EMAILS is empty; access is denied until configured.');
 if ([...developerEmails].some((email) => !allowedEmails.has(email)))
   throw new Error('Every developer must also appear in GOOGLE_ALLOWED_EMAILS.');
+const api = config.api
+  ? (
+      (await import(pathToFileURL(inside(repo.root, config.api)).href))
+        .default as () => RequestHandler
+    )()
+  : undefined;
 const server = createGateway({
   ...repo,
   config,
+  api,
   allowedEmails,
   developerEmails,
   provider: googleProvider(

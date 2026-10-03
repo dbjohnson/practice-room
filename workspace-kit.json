@@ -2,5 +2,8 @@
   "source": "https://github.com/dbjohnson/agent-skills",
   "skill": "bootstrap-app",
   "version": "0.1.0",
-  "patches": ["Seven-day session lifetime from agent-skills branch feat/week-long-sessions"]
+  "patches": [
+    "Seven-day session lifetime from agent-skills branch feat/week-long-sessions",
+    "Optional app API mounted at /api from agent-skills branch feat/app-api"
+  ]
 }

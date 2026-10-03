@@ -7,6 +7,7 @@ import { alphaTab } from '@coderline/alphatab-vite';
 import { workspaceViteConfig } from './src/platform/vite.ts';
 import { prepareSoundFont } from './src/audio/soundfont/prepare.ts';
 import { devAlphaTabAssets } from './src/audio/devAlphaTabAssets.ts';
+import { devApi } from './src/server/devApi.ts';
 
 // Prepare assets before Vite scans public/. The upstream buildStart hook runs too late
 // for Vite 8's development public-file cache on a fresh checkout.
@@ -29,6 +30,7 @@ export default mergeConfig(
     plugins: [
       react(),
       devAlphaTabAssets(),
+      devApi(),
       alphaTab({ assetOutputDir: false }),
       {
         name: 'alphatab-worker-base',

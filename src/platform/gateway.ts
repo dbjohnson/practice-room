@@ -7,7 +7,13 @@ import { listWorkspaces, validId, type Workspace } from './registry';
 import { escapeHtml, page } from './pages';
 
 export function createGateway(
-  options: AuthOptions & { root: string; registry: string; list?: () => Promise<Workspace[]> },
+  options: AuthOptions & {
+    root: string;
+    registry: string;
+    list?: () => Promise<Workspace[]>;
+    /** The app's own routes, served to signed-in users under /api. */
+    api?: express.RequestHandler;
+  },
 ) {
   const { config } = options;
   const app = express();
@@ -124,6 +130,7 @@ export function createGateway(
   app.use('/dev', (_request, response) => {
     response.status(404).send('Unknown dev route.');
   });
+  if (options.api) app.use('/api', options.api);
   const staticRoot = resolve(options.root, config.staticDir);
   app.use(
     express.static(staticRoot, {

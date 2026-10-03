@@ -1,25 +1,52 @@
-import { importer, model, Settings } from '@coderline/alphatab';
+import type { model } from '@coderline/alphatab';
+import type { PieceOrigin } from '../domain/sources';
 import type { Piece } from '../domain/types';
+import { loadScore } from './loadScore';
+import { isMidi } from './midi/parseMidi';
 
-export async function importScore(
-  file: File,
-): Promise<{ piece: Piece; score: model.Score; bytes: ArrayBuffer; warnings: string[] }> {
-  if (!/\.(gp[345]?|gpx|musicxml|xml|mxl)$/i.test(file.name))
-    throw new Error(
-      'Choose a Guitar Pro (.gp3–.gp5, .gpx, .gp) or MusicXML (.xml, .musicxml, .mxl) file.',
-    );
-  if (file.size > 20 * 1024 * 1024)
-    throw new Error(
-      'This prototype accepts scores up to 20 MB. Remove embedded audio or export MusicXML to make a smaller file.',
-    );
-  const bytes = await file.arrayBuffer();
+export const importExtensions = [
+  '.gp',
+  '.gp3',
+  '.gp4',
+  '.gp5',
+  '.gpx',
+  '.xml',
+  '.musicxml',
+  '.mxl',
+  '.mid',
+  '.midi',
+];
+const MAX_BYTES = 20 * 1024 * 1024;
+const tooLarge = () =>
+  new Error(
+    'This prototype accepts scores up to 20 MB. Remove embedded audio or export MusicXML to make a smaller file.',
+  );
+export interface ImportedScore {
+  piece: Piece;
+  score: model.Score;
+  bytes: ArrayBuffer;
+  warnings: string[];
+}
+
+/** Reads score bytes from a file or a catalogue. `origin` records where a found piece came from. */
+export async function importBytes(
+  filename: string,
+  bytes: ArrayBuffer,
+  origin?: PieceOrigin & { title?: string; artist?: string },
+): Promise<ImportedScore> {
+  if (bytes.byteLength > MAX_BYTES) throw tooLarge();
+  const data = new Uint8Array(bytes),
+    midi = isMidi(data);
   let score: model.Score;
   try {
-    score = importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(bytes), new Settings());
-  } catch {
-    throw new Error(
-      'This score could not be read. Try another Guitar Pro version or a MusicXML export.',
-    );
+    score = loadScore(data);
+  } catch (error) {
+    // The MIDI reader explains what is wrong; alphaTab's errors are not written for players.
+    throw midi && error instanceof Error
+      ? error
+      : new Error(
+          'This score could not be read. Try another Guitar Pro version or a MusicXML export.',
+        );
   }
   if (!score.tracks.length || !score.masterBars.length)
     throw new Error('This file does not contain a playable track.');
@@ -32,8 +59,12 @@ export async function importScore(
       .slice(0, 16)
       .map((x) => x.toString(16).padStart(2, '0'))
       .join('');
-  const title = score.title.trim() || file.name.replace(/\.[^.]+$/, '');
+  const title = origin?.title || score.title.trim() || filename.replace(/\.[^.]+$/, '');
   const warnings = ['Check the selected part, tuning and expressive notation against your source.'];
+  if (midi)
+    warnings.push(
+      'Notated from MIDI: rhythms are rounded to sixteenths and triplets, each part is one voice, and fingerings are suggestions.',
+    );
   if (score.backingTrack)
     warnings.push(
       'An embedded recording was found. This prototype plays the generated instruments; recording synchronization comes later.',
@@ -44,17 +75,41 @@ export async function importScore(
     piece: {
       id,
       title,
-      subtitle: score.artist || 'Your imported score',
+      subtitle: origin?.artist || score.artist || 'Your imported score',
       source: 'import',
-      bpm: score.tempo || 80,
+      bpm: Math.round(score.tempo) || 80,
       bars: score.masterBars.length,
       key: 'Imported',
-      tags: [file.name.split('.').at(-1)?.toUpperCase() ?? 'SCORE', `${score.tracks.length} parts`],
+      tags: [
+        origin?.source === 'generated'
+          ? 'AI'
+          : (filename.split('.').at(-1)?.toUpperCase() ?? 'SCORE'),
+        `${score.tracks.length} parts`,
+      ],
       color: 'sand',
-      filename: file.name,
+      filename,
+      ...(origin && {
+        origin: {
+          source: origin.source,
+          name: origin.name,
+          id: origin.id,
+          licence: origin.licence,
+          url: origin.url,
+        },
+      }),
     },
     score,
     bytes,
     warnings,
   };
+}
+
+export async function importScore(file: File): Promise<ImportedScore> {
+  if (!importExtensions.some((extension) => file.name.toLowerCase().endsWith(extension)))
+    throw new Error(
+      'Choose a Guitar Pro (.gp3–.gp5, .gpx, .gp), MusicXML (.xml, .musicxml, .mxl) or MIDI (.mid) file.',
+    );
+  // Checked before reading so an oversized file is never loaded into memory.
+  if (file.size > MAX_BYTES) throw tooLarge();
+  return importBytes(file.name, await file.arrayBuffer());
 }

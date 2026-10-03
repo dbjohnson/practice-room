@@ -30,7 +30,7 @@ export function installAuth(app: Express, options: AuthOptions) {
   };
   const requireUser = (request: Request, response: Response) => {
     if (session(request)) return true;
-    if (request.path.startsWith('/__workspace/'))
+    if (request.path.startsWith('/__workspace/') || request.path.startsWith('/api/'))
       response.status(401).json({ error: 'Sign in required.' });
     else
       response.redirect(`/login?returnTo=${encodeURIComponent(localReturn(request.originalUrl))}`);

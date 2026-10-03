@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { Upload, LoaderCircle } from 'lucide-react';
 import { useRoom } from '../app/RoomContext';
+import { importExtensions } from '../music/importScore';
 
 export function ImportButton({ compact = false }: { compact?: boolean }) {
   const room = useRoom();
@@ -19,8 +20,8 @@ export function ImportButton({ compact = false }: { compact?: boolean }) {
         ref={ref}
         type="file"
         className="visually-hidden"
-        aria-label="Import Guitar Pro or MusicXML"
-        accept=".gp,.gp3,.gp4,.gp5,.gpx,.xml,.musicxml,.mxl"
+        aria-label="Import Guitar Pro, MusicXML or MIDI"
+        accept={importExtensions.join(',')}
         onChange={async (e) => {
           const file = e.target.files?.[0];
           e.target.value = '';

@@ -54,7 +54,7 @@ adopting a newer release. Credentials and browser data remain local to each app.
 
 ## A first tour
 
-1. **Music** — open an original study or import a Guitar Pro/MusicXML file. The score fills the available window, with your instrument, notation view, playback mode, tempo and loop controls always available. Space toggles playback, including after clicking toolbar buttons. Text inputs and dialogs keep their normal keyboard behavior.
+1. **Music** — open an original study, import a Guitar Pro, MusicXML or MIDI file, or use **Find music** in the library to search catalogues and have a practice piece written for you. The score fills the available window, with your instrument, notation view, playback mode, tempo and loop controls always available. Space toggles playback, including after clicking toolbar buttons. Text inputs and dialogs keep their normal keyboard behavior.
 2. **Mixer and Effects** — separate panels below the score. Mixer has instrument levels, mute controls and Reset levels; Effects has compression, reverb and swing. **Passages** provides loop shortcuts; **Feedback** provides take setup and example feedback. These panels start collapsed and close when you click outside them or press Escape. **Tuner** opens live tuning, the input meter and input volume (−24 to +12 dB). The header moon/sun button switches between light and dark mode; the choice is saved.
 3. **Library and jams** — open the navigation menu to choose saved music or Make a jam. Try `shuffle beat ii-V-I in A at 90 BPM`, review the arrangement and Bring in the band.
 4. **Instrument & tuner** — choose your audio interface explicitly and connect. Choose the browser input channel; set hardware gain using the peak meter and clipping indicator. Use the chromatic tuner or lock a guitar/bass string target. Live input is never routed to the output.
@@ -83,7 +83,8 @@ Continuous full-exercise loops use a cached sampled audio buffer and the Web Aud
 
 ## Implemented
 
-- alphaTab imports Guitar Pro 3–8 and MusicXML, renders standard notation and tablature, and plays sampled guitar, bass, keys and drums through Web Audio.
+- alphaTab imports Guitar Pro 3–8 and MusicXML, renders standard notation and tablature, and plays sampled guitar, bass, keys and drums through Web Audio. MIDI files are notated on import (sixteenths and triplets, one voice per part, suggested guitar and bass fingerings).
+- **Find music** searches PDMX (77,321 MuseScore uploads indexed on the server), the Mutopia Project and BitMidi, and links to Songsterr; each result shows its source and licence, and added pieces keep that attribution. **Write one for me** has Claude compose a piece as alphaTex, checked by the notation engine before it opens. See [finding and generating music](docs/sources.md).
 - Real playback, count-in, metronome, measure loops, speed changes, per-track mute and volume, synchronized cursors, and score/TAB switching. The separate Effects panel includes compression, reverb and swing amount sliders; swing ranges from straight eighths through triplets to a heavy shuffle.
 - Three original generated studies. Jam recipes support major/minor ii–V–I, I–IV–V and 12-bar blues, with shuffle, straight and a simple bossa-style pattern in 4/4.
 - Local file persistence in IndexedDB; jam metadata, take results and practice settings in localStorage. Click, count-in, loop, practice mode and effect amounts are remembered, as are each piece's tempo, loop range and mix. Identical imports deduplicate by content hash.
@@ -101,6 +102,8 @@ The instrument detector expects clean, isolated single notes. It is not a polyph
 
 Jam prompts use a small deterministic parser, not a language model. The generated music consists of chord-tone patterns and fixed accompaniment templates. It does not yet provide arbitrary forms, custom chord editing, MIDI/audio export or human-level arranging.
 
+PDMX licences are each uploader's own declaration and BitMidi states none; treat both as personal practice material. Songsterr results only link out, as its terms require. MIDI notation is approximate for played-in files, and AI-written pieces have not been evaluated for musical quality. AI generation needs an Anthropic key on the server and is off without one.
+
 Imported embedded recordings are detected but are not synchronized or played. Section ranges start from the first occurrence of each measure. Custom bends and uncommon notation should be compared with the source. Files are limited to 20 MB and 2,000 measures; production imports need worker isolation and stronger compressed-file limits.
 
 Record take captures the selected input channel and draws a continuous waveform over each line of the score. Review and replay use the backing track by default, with an option to hear the recording alone. Save keeps the WAV audio and timeline in browser IndexedDB; Download audio exports the take. History JSON contains results and metadata, not audio. The selected interface, channel and input gain are remembered; reload reconnects the interface when microphone permission remains granted. Disconnect turns off automatic reconnection.
@@ -111,14 +114,15 @@ Final take grading analyses recorded PCM attacks and pitch. The recorder runs on
 
 Timing receives full credit within ±25 ms and falls linearly to zero at ±150 ms. Missed notes receive zero for note accuracy and timing; unclear input is excluded. Below 60% coverage the combined score is withheld. Saved older takes derive these scores from their stored per-note evidence.
 
-There is no cloud sync, teacher dashboard, validated timing assessment or automatic difficulty promotion. Google sign-in controls hosted access; imports, recordings and progress stay on the browser device. Audio is never uploaded. Clearing browser data removes local music and history.
+There is no cloud sync, teacher dashboard, validated timing assessment or automatic difficulty promotion. Google sign-in controls hosted access; imports, recordings and progress stay on the browser device. Audio is never uploaded. Catalogue searches go through the server to the sources, and a generation request goes through it to Anthropic. Clearing browser data removes local music and history.
 
 ## Shared architecture
 
 ```mermaid
 flowchart TD
   Shell[Music / Library / Jams / Progress] --> Room[Shared room state]
-  Library[Original studies + GP/MusicXML uploads] --> Score[alphaTab score model]
+  Library[Original studies + GP/MusicXML/MIDI uploads] --> Score[alphaTab score model]
+  Api[Server /api: catalogue search, files, AI generation] --> Library
   Jam[Prompt + arrangement controls] --> Score
   Room --> Controls[Transport / loop / track / mixer]
   Controls --> Player[alphaTab MIDI timeline + sampled Web Audio player]
@@ -138,7 +142,7 @@ flowchart TD
   History --> Local[localStorage results]
 ```
 
-`src/music` owns score creation/import and timeline extraction. `src/audio` owns playback, instrument capture, tuning and assessment. `src/app` coordinates shared state. `src/components` contains reusable practice controls. Pages provide library, jam and progress flows. This separation leaves a clear seam for a worker-based detector, richer sample player, persistent service or revised teaching policy without changing the practice interface.
+`src/music` owns score creation/import, MIDI notation and timeline extraction. `src/server` owns the `/api` routes: catalogue providers, the PDMX index and AI generation; the gateway mounts it in production and Vite in development. `src/audio` owns playback, instrument capture, tuning and assessment. `src/app` coordinates shared state. `src/components` contains reusable practice controls. Pages provide library, jam and progress flows. This separation leaves a clear seam for a worker-based detector, richer sample player, persistent service or revised teaching policy without changing the practice interface.
 
 ## Verification
 
@@ -180,6 +184,8 @@ Audio input still comes from the musician's browser and locally connected interf
 Start the next coding session in the checkout and ask it to read `AGENTS.md`, this README, and `spikes/prototype-verification.md`. Completed work includes the single music workspace, GP/MusicXML import, notation/TAB, sampled playback, loops/tempo/mixer, jams, experimental assessment/local progress, and the Instrument & tuner view. Repository cleanup and recording lifecycle fixes cover opening/count-in notes, duplicate starts and input removal during initialization.
 
 The latest increment adds Atlas-style dev worktrees and skills, Google protection for the hosted app, account/build storage namespaces and an adoption command for other Vite apps. Cloudflare must forward to `127.0.0.1:8200`; dev port 8210 bypasses authentication and must remain private. Reuse Atlas's Google client with the Practice Room callback; credentials stay in ignored `.env`. All 103 tests, lint, formatting and type checking/build pass. Synthetic desktop/mobile browser checks cover the account controls, dev build routing, notation and sign-out. A real Google account sign-in remains unverified. The prepared service template is under `deploy/`; see [workspace operations](docs/workspaces.md) before changing hosting.
+
+The source-discovery increment adds the `/api` server routes, catalogue search, MIDI import and AI generation described in [docs/sources.md](docs/sources.md). Generation has only been exercised with a stand-in model client; set `ANTHROPIC_API_KEY` and try it before relying on it.
 
 Return to recording reliability next: player-event alignment and import races remain open. The cable latency measurement and simulated input paths are tested; physical DI guitar/bass, real interface drivers and Safari/Firefox remain unvalidated.
 
