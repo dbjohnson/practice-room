@@ -247,3 +247,8 @@ These files were read from the original local repository for compatibility tests
 - Tests drive a full measurement through the room hook with simulated attacks 45 ms after each click, check it applies to the next take as `measured`, that another channel falls back to the reported figure, and that it can be forgotten. Loopback arithmetic rejects silence, too few clicks and inconsistent delays.
 - Headless Chromium: the panel showed "43 ms · reported by your browser" once connected; a measurement against the synthesized (non-loopback) input correctly failed with "The clicks did not come back clearly", saving nothing; a take then reported "55 ms latency reported by browser". The reported figure moved between 35 and 55 ms during the session.
 - Not verified: the measurement with a real cable or a virtual loopback device, so the measured number itself has never been observed outside tests.
+
+## Practice panels dismiss like menus
+
+- The Tuner, Mixer, Effects, Passages and Feedback panels now close on a click outside them or on Escape, which returns focus to the panel's button. Escape is left to a dialog or menu that is open above a panel. The navigation and gym row menus already behaved this way through the browser's popover.
+- Headless Chromium on this branch: the Mixer closed on a click on the score and on Escape, and stayed open while its own sliders were used.
