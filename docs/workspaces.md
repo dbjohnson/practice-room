@@ -61,6 +61,11 @@ npm run build
 npm start
 ```
 
+An app may name a server module in `workspace.config.json` (`"api": "src/server/api.ts"`).
+Its default export returns a request handler, which the gateway mounts at `/api` for
+signed-in users; unauthenticated calls get 401 rather than a redirect. The app serves
+the same handler from its own dev server.
+
 The gateway binds `127.0.0.1:<port>`. Put an HTTPS reverse proxy or Cloudflare
 tunnel in front of it, forwarding WebSocket upgrades. Do not expose the Vite
 ports. The app and assets require sign-in; `/health` is public. Only developers

@@ -13,6 +13,8 @@ export interface WorkspaceConfig {
   staticDir: string;
   devCommand: string[];
   installCommand: string[];
+  /** Optional module whose default export returns the app's /api request handler. */
+  api?: string;
 }
 
 export function git(root: string, ...args: string[]) {
@@ -66,6 +68,10 @@ export function loadConfig(root: string): WorkspaceConfig {
     )
       throw new Error('Commands must be nonempty arrays of arguments.');
   inside(root, config.staticDir);
+  if (config.api !== undefined) {
+    if (typeof config.api !== 'string') throw new Error('api must be a module path.');
+    inside(root, config.api);
+  }
   return config;
 }
 

@@ -35,6 +35,12 @@ describe('Google-protected app gateway', () => {
     expect(status).toBe(400);
   });
 
+  it('serves the app API to signed-in users and answers others with 401, not a redirect', async () => {
+    expect((await fixture.request('/api/sources')).status).toBe(401);
+    const { cookie } = await fixture.signIn();
+    const response = await fixture.request('/api/sources?q=1', { headers: { cookie } });
+    expect(await response.json()).toEqual({ path: '/sources?q=1' });
+  });
   it('requires the browser-bound state and rejects callback replay', async () => {
     const start = await fixture.request('/auth/google');
     const state = new URL(start.headers.get('location')!).searchParams.get('state');

@@ -64,6 +64,7 @@ export async function gatewayFixture() {
     allowedEmails: new Set([user.email, 'member@example.test']),
     developerEmails: new Set([user.email]),
     list: async () => workspaces,
+    api: (request, response) => response.json({ path: request.url }),
   });
   config.port = await listen(server);
   config.origin = `http://127.0.0.1:${config.port}`;
