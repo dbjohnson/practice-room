@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ArrowUpRight, Library, Music2, Search, Trash2, Upload } from 'lucide-react';
 import { useRoom } from '../app/RoomContext';
 import { AlbumArt } from '../components/AlbumArt';
+import { FindMusic } from '../components/FindMusic';
 import { ImportButton } from '../components/ImportButton';
 import { Modal } from '../components/Modal';
 
@@ -13,7 +14,7 @@ export function LibraryPage() {
   const pieces = r.library.pieces.filter(
     (p) =>
       p.source !== 'exercise' &&
-      `${p.title} ${p.tags.join(' ')}`.toLowerCase().includes(query.toLowerCase()) &&
+      `${p.title} ${p.subtitle} ${p.tags.join(' ')}`.toLowerCase().includes(query.toLowerCase()) &&
       (filter === 'All music' ||
         (filter === 'Your imports' && p.source === 'import') ||
         (filter === 'Your jams' && p.source === 'jam')),
@@ -29,7 +30,10 @@ export function LibraryPage() {
           <h1>A shelf full of possibilities.</h1>
           <p>Your pieces, your practice studies, your next favorite groove.</p>
         </div>
-        <ImportButton />
+        <div className="page-heading-actions">
+          <FindMusic />
+          <ImportButton />
+        </div>
       </div>
       <div className="library-tools">
         <div className="segmented">
@@ -71,7 +75,7 @@ export function LibraryPage() {
                   ? 'ORIGINAL STUDY'
                   : piece.source === 'jam'
                     ? 'YOUR JAM'
-                    : 'YOUR IMPORT'}
+                    : (piece.origin?.name.toUpperCase() ?? 'YOUR IMPORT')}
                 <span>{piece.bars} bars</span>
               </div>
               <h2>
@@ -86,7 +90,7 @@ export function LibraryPage() {
               </h2>
               <p>{piece.subtitle}</p>
               <div className="piece-card-footer">
-                <span>
+                <span title={piece.origin?.licence}>
                   <Music2 size={13} />
                   {piece.key} · {piece.bpm} BPM
                 </span>
@@ -113,7 +117,7 @@ export function LibraryPage() {
               ? 'No pieces match that search.'
               : filter === 'Your jams'
                 ? 'Create a jam and it will be waiting here.'
-                : 'Import a Guitar Pro or MusicXML file to make it yours.'}
+                : 'Find a piece, or import a Guitar Pro, MusicXML or MIDI file.'}
           </p>
           <button
             className="button button-quiet"
@@ -141,7 +145,8 @@ export function LibraryPage() {
         <div>
           <h3>Bring the music you’re working on.</h3>
           <p>
-            Drop a Guitar Pro or MusicXML file here. Up to 20 MB. Your files stay on this device.
+            Drop a Guitar Pro, MusicXML or MIDI file here. Up to 20 MB. Your files stay on this
+            device.
           </p>
         </div>
         <ImportButton compact />

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { importer, Settings, type model } from '@coderline/alphatab';
+import type { model } from '@coderline/alphatab';
 import type { JamRecipe, Piece } from '../domain/types';
 import type { Exercise } from '../domain/gym';
 import { exercisePiece, loadExerciseScore } from '../music/exerciseScore';
 import { scoreKey } from '../music/transposeScore';
 import { studies } from '../music/catalog';
 import { createScore } from '../music/createScore';
-import { importScore } from '../music/importScore';
+import { importBytes, importScore, type ImportedScore } from '../music/importScore';
+import { loadScore } from '../music/loadScore';
 import { loadPieces, readScore, removeScore, storeScore, writeLocal } from '../storage/library';
 
 export function useLibrary(notify: (message: string) => void, exercises: Exercise[] = []) {
@@ -49,7 +50,7 @@ export function useLibrary(notify: (message: string) => void, exercises: Exercis
           const buffer = await readScore(next.id);
           if (request !== selection.current) return false;
           if (!buffer) throw new Error('The saved file is missing. Import it again to restore it.');
-          loaded = importer.ScoreLoader.loadScoreFromBytes(new Uint8Array(buffer), new Settings());
+          loaded = loadScore(new Uint8Array(buffer));
         } else loaded = createScore(next, next.recipe!);
         if (request !== selection.current) return false;
         setPiece(next);
@@ -70,11 +71,11 @@ export function useLibrary(notify: (message: string) => void, exercises: Exercis
     },
     [notify],
   );
-  const upload = async (file: File) => {
+  const store = async (load: () => Promise<ImportedScore>) => {
     const request = ++selection.current;
     setBusy(true);
     try {
-      const result = await importScore(file);
+      const result = await load();
       await storeScore(result.piece.id, result.bytes);
       persist([result.piece, ...saved.filter((p) => p.id !== result.piece.id)]);
       if (request !== selection.current) return false;
@@ -91,6 +92,13 @@ export function useLibrary(notify: (message: string) => void, exercises: Exercis
       if (request === selection.current) setBusy(false);
     }
   };
+  const upload = (file: File) => store(() => importScore(file));
+  /** Adds a piece found in a catalogue or written by the AI, fetched by `bytes`. */
+  const add = (
+    filename: string,
+    bytes: () => Promise<ArrayBuffer>,
+    origin: Parameters<typeof importBytes>[2],
+  ) => store(async () => importBytes(filename, await bytes(), origin));
   const saveJam = (recipe: JamRecipe): Piece => {
     cancelSelection();
     const newPiece: Piece = {
@@ -134,6 +142,7 @@ export function useLibrary(notify: (message: string) => void, exercises: Exercis
     select,
     cancelSelection,
     upload,
+    add,
     saveJam,
     remove,
   };

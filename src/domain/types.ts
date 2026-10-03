@@ -1,4 +1,5 @@
 import type { Exercise, GymSet, GymTakeContext } from './gym';
+import type { PieceOrigin } from './sources';
 export type Page = 'practice' | 'library' | 'jam' | 'progress' | 'instrument' | 'gym';
 export type View = 'both' | 'score' | 'tab';
 export type Feel = 'shuffle' | 'straight' | 'bossa';
@@ -33,6 +34,8 @@ export interface Piece {
   color: string;
   recipe?: JamRecipe;
   filename?: string;
+  /** Where a found or generated piece came from, kept for attribution. */
+  origin?: PieceOrigin;
 }
 export interface LoopRange {
   start: number;

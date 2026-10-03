@@ -18,5 +18,6 @@
     "{port}",
     "--strictPort"
   ],
-  "installCommand": ["npm", "ci"]
+  "installCommand": ["npm", "ci"],
+  "api": "src/server/api.ts"
 }
