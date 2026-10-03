@@ -51,6 +51,16 @@ export function useLibrary(notify: (message: string) => void, exercises: Exercis
           if (request !== selection.current) return false;
           if (!buffer) throw new Error('The saved file is missing. Import it again to restore it.');
           loaded = loadScore(new Uint8Array(buffer));
+          // A piece saved before a tempo fix keeps its old figure; the score is the authority.
+          const bpm = Math.round(loaded.tempo) || next.bpm;
+          if (bpm !== next.bpm) {
+            const corrected = (next = { ...next, bpm });
+            setSaved((pieces) => {
+              const updated = pieces.map((p) => (p.id === corrected.id ? corrected : p));
+              writeLocal('library', updated);
+              return updated;
+            });
+          }
         } else loaded = createScore(next, next.recipe!);
         if (request !== selection.current) return false;
         setPiece(next);
