@@ -24,6 +24,18 @@ the library (`Piece.origin`).
 and slow-down for its paid plan and ask tools not to provide equivalents, so its note
 data is never loaded into the player. Do not add a loader for it without permission.
 
+## Preview
+
+Every loadable result has a **Preview** button. It fetches the file through
+`/api/sources/file`, reads it exactly as adding it would, and opens a small second player
+under the result: the notation as it will appear, play and pause, and a part picker. All
+parts sound, so the preview tells you what the piece is, not only what one part looks
+like. Only the lines in view are drawn and only the samples the score needs are loaded,
+so long scores open quickly; those samples are then already cached when the piece is
+added. Adding a previewed result reuses the fetched file. Opening a preview stops the
+main player, and closing the preview or leaving Discover stops the preview. Songsterr results
+have no preview, for the reason above.
+
 BitMidi's and Songsterr's search endpoints are undocumented and may change. Mutopia has
 no API; its HTML result page is parsed. Each failure is reported per source and does not
 block the others. Searches are cached for ten minutes.

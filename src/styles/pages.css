@@ -1027,18 +1027,54 @@
   padding: 0;
 }
 .find-results li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
   padding: 11px 13px;
   border: 1px solid var(--theme-border, #e0e5d9);
   border-radius: 8px;
 }
-.find-results li > div {
+.find-hit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.find-hit > div {
   display: grid;
   gap: 3px;
   min-width: 0;
+  margin-right: auto;
+}
+.find-preview {
+  display: grid;
+  gap: 10px;
+  margin-top: 11px;
+}
+.find-preview-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.find-preview-bar select {
+  border: 0;
+  background: transparent;
+  color: var(--secondary-fg, #496044);
+  font-size: 12px;
+  padding: 5px 3px;
+  max-width: 230px;
+}
+.find-preview-bar > span {
+  font-size: 11px;
+  color: var(--secondary-fg, #7a8372);
+}
+.find-preview-score {
+  position: relative;
+  height: min(46vh, 420px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: 6px;
+  background: var(--paper);
+}
+[data-theme='dark'] .find-preview-score {
+  background: #080b10;
 }
 .find-results strong {
   font-size: 13px;

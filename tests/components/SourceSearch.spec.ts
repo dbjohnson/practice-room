@@ -5,6 +5,22 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { SourceSearch } from '../../src/components/SourceSearch';
 import type { SourceHit } from '../../src/domain/sources';
 
+// The notation engine needs a real browser; the preview's own hook is tested with it mocked.
+vi.mock('../../src/components/ScorePreview', async () => {
+  const { createElement, useEffect, useState } = await import('react');
+  return {
+    ScorePreview: ({ filename, load }: { filename: string; load: () => Promise<ArrayBuffer> }) => {
+      const [size, setSize] = useState<number | null>(null);
+      useEffect(() => void load().then((bytes) => setSize(bytes.byteLength)), []);
+      return createElement(
+        'p',
+        null,
+        size === null ? 'Fetching…' : `Previewing ${filename}, ${size} bytes`,
+      );
+    },
+  };
+});
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -65,6 +81,35 @@ it('adds loadable results with their file and links out for the rest', async () 
   expect([added.id, name, filename]).toEqual(['a/b.mid', 'Mutopia Project', 'Etude.mid']);
   expect(new Uint8Array(await bytes())).toEqual(new Uint8Array([1, 2, 3]));
   expect(String(fetch.mock.calls[1][0])).toContain('api/sources/file?source=mutopia&id=a%2Fb.mid');
+});
+
+it('previews a result, stops other playback, and adds it without fetching it twice', async () => {
+  const fetch = vi
+    .fn()
+    .mockResolvedValueOnce(
+      json({
+        hits: [hit({}), hit({ source: 'songsterr', id: '9', title: 'Riff', format: 'link' })],
+        failed: [],
+      }),
+    )
+    .mockResolvedValueOnce(new Response(new Uint8Array([1, 2, 3])));
+  vi.stubGlobal('fetch', fetch);
+  const onAdd = vi.fn();
+  const onPreview = vi.fn();
+  render(createElement(SourceSearch, { sources, busy: false, onAdd, onPreview }));
+  search('sor etude');
+  await screen.findByText('Etude');
+  // Link-only results are never loaded, so they offer no preview.
+  expect(screen.getAllByRole('button', { name: /^Preview/ })).toHaveLength(1);
+  fireEvent.click(screen.getByRole('button', { name: 'Preview Etude' }));
+  expect(onPreview).toHaveBeenCalledOnce();
+  await screen.findByText('Previewing Etude.mid, 3 bytes');
+  fireEvent.click(screen.getByRole('button', { name: 'Add Etude to your library' }));
+  expect(new Uint8Array(await onAdd.mock.calls[0][3]())).toEqual(new Uint8Array([1, 2, 3]));
+  expect(fetch).toHaveBeenCalledTimes(2);
+  fireEvent.click(screen.getByRole('button', { name: 'Close the preview of Etude' }));
+  expect(screen.queryByText(/Previewing/)).toBeNull();
+  expect(onPreview).toHaveBeenCalledOnce();
 });
 
 it('explains server errors and a missing server in plain words', async () => {
