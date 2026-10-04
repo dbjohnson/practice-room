@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { ProxyServer } from 'http-proxy-3';
 import { installAuth, type AuthOptions } from './auth';
 import { listWorkspaces, validId, type Workspace } from './registry';
+import { workspaceSnapshot, devAssetCache } from './devAssets';
 import { escapeHtml, page } from './pages';
 
 export function createGateway(
@@ -96,13 +97,21 @@ export function createGateway(
         ),
       );
   });
+  const assetWorkspaces = workspaceSnapshot(list);
   const find = async (url: string) => {
     const id = /^\/dev\/build\/([^/?]+)(?:\/|$)/.exec(url)?.[1];
-    return id && validId(id) ? (await list()).find((workspace) => workspace.id === id) : undefined;
+    return id && validId(id)
+      ? (await assetWorkspaces()).find((workspace) => workspace.id === id)
+      : undefined;
   };
   const proxy = new ProxyServer({ changeOrigin: true, ws: true });
-  proxy.on('proxyRes', (response) => {
-    response.headers['cache-control'] = 'private, no-store';
+  proxy.on('proxyRes', (response, request) => {
+    response.headers['cache-control'] = devAssetCache(
+      request.url ?? '/',
+      String(response.headers['content-type'] ?? ''),
+      String(response.headers['cache-control'] ?? ''),
+      response.statusCode ?? 500,
+    );
     delete response.headers['set-cookie'];
   });
   const stripCredentials = (headers: Record<string, unknown>) => {
