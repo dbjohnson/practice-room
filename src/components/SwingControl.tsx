@@ -3,12 +3,6 @@ import { writtenSwing } from '../music/swing';
 
 export function SwingControl() {
   const r = useRoom();
-  const locked =
-    r.gymRunMatches ||
-    r.takes.recording ||
-    r.takePlayback.active ||
-    r.exerciseLoop.active ||
-    r.exerciseLoop.preparing;
   const amount = r.swing ?? writtenSwing(r.library.score);
   const description = r.swing === null ? 'As written' : amount === 0 ? 'Straight' : `${amount}%`;
   return (
@@ -24,7 +18,6 @@ export function SwingControl() {
         max={100}
         step={1}
         value={amount}
-        disabled={locked}
         onChange={(event) => r.setSwing(Number(event.target.value))}
       />
       <small>
@@ -35,7 +28,7 @@ export function SwingControl() {
       <button
         className="text-button swing-reset"
         type="button"
-        disabled={locked || r.swing === null}
+        disabled={r.swing === null}
         onClick={() => r.setSwing(null)}
       >
         Restore written feel

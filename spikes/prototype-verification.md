@@ -263,3 +263,95 @@ These files were read from the original local repository for compatibility tests
 - AI generation was only exercised with a stand-in model client: the repair loop, refusal and length handling, validation and the daily cap are tested, and the example in the prompt is parsed by alphaTab in a test. No request has been sent to Claude, because the server has no Anthropic credentials, so the quality and validity rate of real output are unknown.
 - Not verified: the hosted gateway serving `/api` (it runs `main`), a real generation, Songsterr and BitMidi endpoint stability over time, and import of very large MIDI files in the browser.
 - Tempo fix found in use: a PDMX "Moonlight Sonata 1st movement" showed 450 BPM and counted in at 450 while playing at 45. The file stacks two tempo marks on the first beat; playback obeys the last and alphaTab reports the first. `loadScore` now drops the shadowed marks, and opening a saved import refreshes its stored tempo from the score. Checked in headless Chromium on the real file: 45 BPM when added, and a save tampered back to 450 corrected itself to 45 on opening. This also applied to uploaded MusicXML before this branch.
+
+## OpenRouter generation, instrumentation and score revisions — 2026-10-03
+
+- Switched generation to OpenRouter, using `OPEN_ROUTER_API_KEY` or `OPENROUTER_API_KEY`. The server's model catalogue returned Sonnet 5.5 as `anthropic/claude-sonnet-5.5`; developer model selection is stored per account/build/browser.
+- A live default-model request returned valid guitar notation. A live instrumentation request returned four separate tracks: clean guitar, electric bass, acoustic piano and percussion. It returned four bars for a two-bar request, so musical compliance still needs human review even after syntax validation.
+- A live edit of that complete score changed tempo from 80 to 66 BPM, preserving all four tracks, all bars and the note/duration data. This exercised the same generation endpoint used by score chat.
+- Automated tests cover instrumentation and edit request validation, model selection/persistence, score chat submission/errors, multi-instrument alphaTex export, original snapshots, distinct version IDs, branching from an earlier version, reload/restore, deleting a version family, storage failures, and late replies after changing pieces.
+- Local development already skips Google sessions on localhost/loopback. T3's browser is on another computer; its localhost cannot reach om's dev listener until an SSH port forward is running. Public navigation correctly reached Google sign-in. Visual browser verification remains pending that forward; no public authentication was weakened.
+- Workspace cleanup stopped the old simplify server while keeping its unmerged work, and stopped/removed the clean merged popup-dismiss and source-discovery worktrees. Only this session's workspace remains running. Shared cleanup tooling and lifecycle documentation were implemented in agent-skills first and adopted here; its full checks, including independent app adoption and process lifecycle, passed.
+
+### Continuous passage loops and restrained score scrolling
+
+- Listen and Play along now use the existing native looping buffer for full scores and selected passages. Two MIDI cycles are rendered and the second is cached, removing the synth drain/refill at each wrap. Tempo changes, held notes at passage boundaries, routed MIDI, count-in and click follow the passage timing. Full-exercise recording retains the same continuous path.
+- Score following uses alphaTab off-screen scrolling: visible lines remain in place, including at a loop return when its starting line is still visible. This supersedes the earlier behavior that placed every new line at the top.
+- Automated checks cover native source continuity, passage cropping, variable-tempo cursor timing, count-in and ordinary playback routing. Live audio and scrolling inspection remain pending: the T3 browser is on another computer and its localhost cannot reach om without port forwarding.
+
+### Live mixer and unified playback
+
+- Removed Listen / Play along / Record take mode selection. Play records automatically when an audio or MIDI instrument is connected; saved-take replay does not start another recording. Selected passages now support continuous recording too.
+- Continuous playback renders synchronized per-track stems. Gain changes, explicit mute and additive solo work during playback and recording without rebuilding audio or restarting sources. Mute choices survive solo changes; solo resets for a different piece. Instrument routing remains adjustable. Removed implicit muting of the selected part from both native loops and alphaTab playback.
+- Regression checks cover audible sampled guitar on the selected part, explicit mute silence, live gain changes without source restarts, mixer controls during recording, automatic connected recording, and passage recording. The collaborative browser still reports ERR_CONNECTION_REFUSED on the forwarded localhost address; no live browser/listening verification claimed.
+
+### Loop instrument loading and exclusive mixer buttons
+
+- Fixed loop export to pass alphaTab’s underlying synth instance, matching the library’s own export path. Passing its player facade instead created a separate worker without the loaded sample bank. Existing cached loop buffers are invalidated.
+- Mute clears solo on the same track; solo clears mute. Other tracks’ explicit mute choices remain unchanged.
+- Regression coverage models alphaTab’s wrapper/instance distinction and renders complete Blue hour loops through the real recorded instrument bank, both full and selectively loaded, with effects enabled. Every track must produce finite, non-silent audio. Browser listening verification remains unavailable through the remote preview connection.
+
+### Uniform, visible playback cursor
+
+- Replaced the visible beat-to-beat cursor with a continuous measure-progress overlay. Horizontal position uses elapsed playback ticks across each measure, independent of swung note attacks and engraving spacing. Audio, assessment, note highlighting and off-screen-only scrolling retain their timing.
+- The cursor is a one-pixel amber line without an outline and with a three-pixel top marker. It follows measure boundaries, line changes, repeated measures, seeks and zoomed layout bounds. Tests cover uniform position, repeated bars and animation between synth reports. Live visual inspection remains blocked by the remote preview connection.
+
+
+### Live controls and reload follow-up
+
+- Tempo, restart, loop, passage, swing, key and effects controls remain available during playback. Changes that require rendering resume automatically at the current tick where possible; restart, passage and key changes start from the passage beginning. Timing changes during recording finish the current take and start a new one so take metadata remains accurate. Count-in changes apply to the next start.
+- Disabling Loop finishes the current pass; re-enabling it before the end continues looping without recreating sources. Tests cover this boundary, resumed audio offsets, live tempo/restart and cancellation of a pending resume.
+- MIDI channel inputs no longer inherit the volume slider's three-pixel height. Routing controls wrap, and the channel field has a 72-pixel width and 34-pixel height.
+- Secondary pages and dialogs load on demand. The shared gateway patch coalesces per-asset Git/health lookups for one second and permits private caching of versioned assets, with revalidation for unversioned assets. HTML, API responses and failures remain uncached. The gateway patch was implemented and checked upstream first; the owner subsequently authorized applying the gateway-only patch to the running service. Browser reload timing and visual checks remain unverified because the remote preview cannot reach om through localhost.
+
+- After owner approval, applied the gateway-only patch to production checkout `c141b6d` and restarted `practice-room.service`. TypeScript and all 11 focused gateway/cache tests passed in that checkout. The prior process required the configured 20-second stop timeout; the replacement is active, public health returns 200/ok, root and dev-link authentication redirects return 302, and the isolated Vite build returns 200. Production UI assets were not rebuilt. The gateway patch remains an uncommitted hotfix in the main checkout, with the same implementation retained in this session's branch for review. No signed-in browser timing measurement was available.
+
+
+### Library table and compact mixer controls
+
+- Replaced the music card grid with a searchable, sortable table. Source, key and tag filters combine with multi-word search across title, subtitle, filename and tags; numeric tempo/bar sorting and 25/50/100-row pagination keep larger libraries manageable. One row represents the latest saved version, with family deletion still confirmed.
+- Discover, Generate and Import now live inside the library. Additions return to the table, clear restrictive filters and offer Open in player. Failed additions retain the current flow; discovered results and generation drafts survive switching sections. Source availability loads when needed. No catalogue/provider or generation API behavior changed.
+- Navigation comes first at the far left of the header. Removed Import a piece from the player.
+- Mixer mute/solo buttons form a compact M/S group with tooltips and descriptive accessible names. Solo is exclusive across tracks, transfers immediately, and still clears that track's mute. Muting a soloed track clears solo.
+- Component checks cover combined filters, numeric sorting, pagination, latest-version selection, imports, failure retention, discovery/generation handoff and exclusive live solo. Browser visual checks remain blocked: both the forwarded local URL and environment-port preview navigation fail on the remote T3 browser.
+
+
+### Rename and remove all library songs
+
+- Every music row now offers Rename and Remove, including built-in studies. Built-in removals and family-wide title overrides persist in account/build-scoped browser storage. Renames preserve IDs, notation, version relationships and historical takes; reopening any version uses the chosen title.
+- Removal selects another remaining music piece when possible. Removing all music leaves an empty library/player prompt, and startup navigation never restores a deleted built-in into the library. Blank/overlong names are rejected, and a failed preferences write leaves the visible song unchanged.
+- Focused hook/component tests cover built-in deletion through an empty library, reload persistence, renaming built-ins and saved version families, unchanged notation and IDs, storage failures, and the rename/remove UI.
+
+- Rename/removal verification passed the full `npm run check` suite: 489 tests in 97 files, lint, formatting, coverage thresholds, TypeScript and production build.
+
+### Chat keyboard submission and header versions
+
+- Enter sends AI edit requests; Shift+Enter preserves multiline entry and composition events do not submit. The input clears before awaiting generation; pending text remains visible and failed requests restore the draft for retry.
+- The piece-version selector sits beside the song name in the player header, so versions are available with chat closed. The chat retains version history and its Open version actions. Selection stops playback and loads the chosen version.
+- Focused tests verify submission before async completion, Shift+Enter/composition handling, retry preservation and version switching/recording locks.
+
+
+### Generation transport failures
+
+- Investigated the reported “Finding and creating music needs the Practice Room server” failure. That text was a catch-all for HTML/non-JSON responses and did not establish that generation was unconfigured. The live API reported enabled generation, the selected default model was in OpenRouter's catalogue, and a direct four-bar generation returned valid notation in 13.6 seconds. Historical failures had no server-side generation diagnostics, so their exact cause could not be recovered.
+- Added asynchronous generation jobs and browser polling to avoid holding an HTTP request open through model calls and up to two notation repairs. Both new pieces and score edits use the same flow. Explicit messages distinguish sign-in redirects, gateway HTTP errors, expired jobs and generation failures. Jobs expire after fifteen minutes, remain private/uncached, and log safe status/timing metadata.
+- A live Sonnet 5.5 score edit was accepted with HTTP 202 in 53 ms and retrieved successfully with HTTP 200 after 15.1 seconds. All 32 focused generation/API/client/chat tests passed, along with lint, formatting and production build. Proxy timeout was a plausible cause of the original failure, not a verified historical diagnosis.
+
+
+### Durable generation recovery (2026-10-03)
+
+Generation acceptance and results now persist as private server job files, with browser receipts and idempotent submission. Regression tests cover completion without polling, retrieval from a fresh job manager, duplicate submissions, and rebuilding an edit/version after remount. Late edits save without replacing a newly selected piece. The migration invalidated a preexisting memory-only job; its prompt remained in chat, but that result was not recoverable. An earlier completed result was separately recovered as a local Guitar Pro artifact. Browser verification remains blocked by the remote preview connection refusing the forwarded dev URL.
+
+
+### Session wrapup: library editing and playback controls
+
+- Inline song-name and description editors replace the rename dialog. Enter/checkmark saves, Escape cancels, and empty descriptions are supported. Overrides persist for built-ins and all saved versions. The library heading no longer offers Make a jam. Imported/generated rows read the score key signature; legacy placeholders are repaired on reload.
+- Count-in, metronome and flash share a uniformly spaced icon group and theme-aware filled toggle states. The metronome uses its own icon; its remembered volume is in the mixer and changes live without restarting audio. Count-in follows metronome/flash state and metronome volume. The native alphaTab path uses a near-zero positive count-in level for silent timing because zero disables count-in in that API. Continuous-loop count-in uses the same gain node as the ongoing click.
+- The optional score border fades softly on clock beats independently of audible click. The playback measure box is hidden; the thin uniform cursor remains.
+- Background generation recovery failures update the retained chat request without showing a global notification. Response-body timeouts now retain the actionable timeout error.
+- Browser visual verification/screenshots remain unavailable: the collaborative browser is remote from om and its dev-port navigation returns connection refused. Physical audio-interface, MIDI-host, and subjective loop/click timing validation remain manual. A historical alphaTab worker BoundsLookup error appeared while scores were changing; its cause has not been isolated.
+- Rebased onto origin/main `5c0297c`, which already contains the shared gateway caching fix. No code conflicts; two previously untracked files were already upstream and verified byte-for-byte against the saved session. Backup branch: `backup/openrouter-before-wrapup-20261003`. All session files restored and the temporary stash removed.
+
+- Full-check first attempt: 503 tests passed, with timeouts in real alphaTab dev-asset minification (15 seconds) and full-bank loop rendering (60 seconds). The dev-asset test passed alone in six seconds. Their integration-test limits were raised to 30 and 120 seconds respectively to allow full coverage on a shared CPU; all assertions remain unchanged.
+
+- Final `npm run check`: PASS. ESLint and Prettier passed; 99 test files / 505 tests passed in 77.61 seconds; configured coverage thresholds passed (aggregate statements 93.36%, branches 86.04%, functions 91.94%, lines 93.92%); TypeScript and Vite production build passed. Existing large-chunk and Node experimental-localStorage warnings remain. Local dev build and public gateway health returned HTTP 200.

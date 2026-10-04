@@ -73,4 +73,5 @@ it('serves a much smaller licensed module to every worker, with gzip negotiation
       server.close((error) => (error ? reject(error) : resolve())),
     );
   }
-}, 15000);
+  // Real alphaTab minification competes with audio rendering in the full coverage suite.
+}, 30000);

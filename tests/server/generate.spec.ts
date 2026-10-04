@@ -3,10 +3,8 @@ import { alphaTexExample } from '../../src/server/alphaTexGuide';
 import { alphaTexErrors, generateScore, type Compose } from '../../src/server/generate';
 
 const request = { prompt: 'blues riff', instrument: 'guitar', level: 'beginner' } as const;
-const reply = (text: string, stop_reason: 'end_turn' | 'refusal' | 'max_tokens' = 'end_turn') =>
-  ({ stop_reason, content: [{ type: 'text', text, citations: null }] }) as Awaited<
-    ReturnType<Compose>
-  >;
+const reply = (text: string, finishReason: 'stop' | 'content_filter' | 'length' = 'stop') =>
+  ({ finishReason, content: text }) as Awaited<ReturnType<Compose>>;
 const valid = '\\title "Riff"\n:4 0.6 3.6 5.6 3.6 |';
 
 describe('alphaTex checking', () => {
@@ -20,10 +18,28 @@ describe('alphaTex checking', () => {
 });
 
 describe('piece generation', () => {
+  it('passes instrumentation, the complete current score and edit context to the model', async () => {
+    const compose = vi.fn<Compose>(async () => reply(valid));
+    await generateScore(
+      {
+        ...request,
+        instrumentation: 'Lead guitar, bass, piano and drums',
+        currentScore: valid,
+        history: ['Add a bass line'],
+      },
+      compose,
+    );
+    const message = compose.mock.calls[0][0][0].content;
+    expect(message).toContain('Instrumentation: Lead guitar, bass, piano and drums');
+    expect(message).toContain(valid);
+    expect(message).toContain('Add a bass line');
+    expect(message).toContain('Requested edit: blues riff');
+    expect(message).toContain('Preserve its musical content');
+  });
   it('returns alphaTex from a fenced reply', async () => {
     const compose = vi.fn<Compose>(async () => reply('```alphatex\n' + valid + '\n```'));
     expect(await generateScore(request, compose)).toEqual({ alphaTex: valid });
-    expect(compose.mock.calls[0][0][0].content).toContain('Instrument: guitar');
+    expect(compose.mock.calls[0][0][0].content).toContain('Practice instrument: guitar');
   });
   it('sends parser errors back and keeps the earlier turns unchanged', async () => {
     const draft = reply('```alphatex\n:4 0.9 |\n```');
@@ -41,10 +57,12 @@ describe('piece generation', () => {
     const bad = vi.fn<Compose>(async () => reply('not music'));
     await expect(generateScore(request, bad)).rejects.toThrow('could not write valid notation');
     expect(bad).toHaveBeenCalledTimes(3);
-    await expect(generateScore(request, async () => reply('', 'refusal'))).rejects.toMatchObject({
+    await expect(
+      generateScore(request, async () => reply('', 'content_filter')),
+    ).rejects.toMatchObject({
       status: 422,
     });
-    await expect(generateScore(request, async () => reply(valid, 'max_tokens'))).rejects.toThrow(
+    await expect(generateScore(request, async () => reply(valid, 'length'))).rejects.toThrow(
       'too long',
     );
     await expect(

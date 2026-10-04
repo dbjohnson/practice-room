@@ -1,14 +1,28 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { useRoom } from './RoomContext';
 import { Shell } from '../components/Shell';
-import { InstrumentPage } from '../pages/InstrumentPage';
-import { ReviewDialog } from '../components/ReviewDialog';
-import { HelpDialog } from '../components/HelpDialog';
+const InstrumentPage = lazy(() =>
+  import('../pages/InstrumentPage').then((module) => ({ default: module.InstrumentPage })),
+);
+const ReviewDialog = lazy(() =>
+  import('../components/ReviewDialog').then((module) => ({ default: module.ReviewDialog })),
+);
+const HelpDialog = lazy(() =>
+  import('../components/HelpDialog').then((module) => ({ default: module.HelpDialog })),
+);
 import { PracticePage } from '../pages/PracticePage';
-import { LibraryPage } from '../pages/LibraryPage';
-import { JamPage } from '../pages/JamPage';
-import { GymPage } from '../pages/GymPage';
-import { ProgressPage } from '../pages/ProgressPage';
+const LibraryPage = lazy(() =>
+  import('../pages/LibraryPage').then((module) => ({ default: module.LibraryPage })),
+);
+const JamPage = lazy(() =>
+  import('../pages/JamPage').then((module) => ({ default: module.JamPage })),
+);
+const GymPage = lazy(() =>
+  import('../pages/GymPage').then((module) => ({ default: module.GymPage })),
+);
+const ProgressPage = lazy(() =>
+  import('../pages/ProgressPage').then((module) => ({ default: module.ProgressPage })),
+);
 
 export function App() {
   const r = useRoom();
@@ -36,20 +50,24 @@ export function App() {
         <div hidden={r.page !== 'practice'}>
           <PracticePage />
         </div>
-        {r.page === 'practice' ? null : r.page === 'library' ? (
-          <LibraryPage />
-        ) : r.page === 'gym' ? (
-          <GymPage />
-        ) : r.page === 'jam' ? (
-          <JamPage />
-        ) : r.page === 'instrument' ? (
-          <InstrumentPage />
-        ) : (
-          <ProgressPage />
-        )}
+        <Suspense fallback={<p role="status">Opening…</p>}>
+          {r.page === 'practice' ? null : r.page === 'library' ? (
+            <LibraryPage />
+          ) : r.page === 'gym' ? (
+            <GymPage />
+          ) : r.page === 'jam' ? (
+            <JamPage />
+          ) : r.page === 'instrument' ? (
+            <InstrumentPage />
+          ) : (
+            <ProgressPage />
+          )}
+        </Suspense>
       </Shell>
-      <ReviewDialog />
-      <HelpDialog />
+      <Suspense fallback={null}>
+        {r.takes.review && <ReviewDialog />}
+        {r.helpOpen && <HelpDialog />}
+      </Suspense>
     </>
   );
 }

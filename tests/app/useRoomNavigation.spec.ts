@@ -133,3 +133,15 @@ describe('room navigation history', () => {
     expect(window.location.hash).toContain('song=evening-study');
   });
 });
+
+it('opens an empty library instead of restoring deleted built-in music', async () => {
+  writeLocal(
+    'library-edits',
+    Object.fromEntries(studies.map((piece) => [piece.id, { removed: true }])),
+  );
+  const { result } = renderHook(useNavigableRoom);
+  await flush();
+  expect(result.current.page).toBe('library');
+  expect(result.current.library.empty).toBe(true);
+  expect(result.current.library.pieces.some((piece) => piece.source === 'study')).toBe(false);
+});

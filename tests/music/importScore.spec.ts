@@ -9,6 +9,7 @@ describe('score import boundary', () => {
     const again = await importScore(new File([xml], 'renamed.xml'));
     expect(first.piece.title.replace(/\s/g, ' ')).toBe('Test melody');
     expect(first.piece.bars).toBe(1);
+    expect(first.piece.key).toBe('C major');
     expect(first.score.tracks).toHaveLength(1);
     expect(first.piece.id).toBe(again.piece.id);
     expect(first.bytes.byteLength).toBeGreaterThan(0);
@@ -55,4 +56,11 @@ describe('score import boundary', () => {
     const written = await importBytes('piece.alphatex', tex, { ...origin, source: 'generated' });
     expect(written.piece).toMatchObject({ title: 'Riff', bars: 1, tags: ['AI', '1 parts'] });
   });
+});
+
+it('uses the generated score key signature for the library key', async () => {
+  const bytes = new TextEncoder().encode(
+    '\\title "Minor blues"\n\\ks eminor :4 0.6 3.6 5.6 3.6 |',
+  ).buffer;
+  expect((await importBytes('piece.alphatex', bytes)).piece.key).toBe('E minor');
 });

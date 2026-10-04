@@ -134,8 +134,7 @@ export function ProgressPage() {
           <button
             className="button button-primary"
             onClick={() => {
-              r.setPage('practice');
-              r.setMode('assess');
+              r.setPage(r.inputConnected ? 'practice' : 'instrument');
             }}
           >
             Record your first take <ArrowRight size={16} />

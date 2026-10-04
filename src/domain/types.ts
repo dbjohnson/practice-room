@@ -1,3 +1,4 @@
+import type { PieceRevision } from './revisions';
 import type { Exercise, GymSet, GymTakeContext } from './gym';
 import type { PieceOrigin } from './sources';
 export type Page = 'practice' | 'library' | 'jam' | 'progress' | 'instrument' | 'gym';
@@ -36,6 +37,7 @@ export interface Piece {
   filename?: string;
   /** Where a found or generated piece came from, kept for attribution. */
   origin?: PieceOrigin;
+  revision?: PieceRevision;
 }
 export interface LoopRange {
   start: number;

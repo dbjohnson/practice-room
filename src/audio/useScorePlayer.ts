@@ -17,6 +17,7 @@ import { loadScoreSamples } from './loadScoreSamples';
 import { attachPlaybackEffects } from './attachPlaybackEffects';
 import { useSwingPlayback } from './useSwingPlayback';
 import type { MixEffects } from './PlaybackEffects';
+import { UniformScoreCursor } from './UniformScoreCursor';
 import { hideScoreBranding } from './hideScoreBranding';
 
 export interface PlayerOptions {
@@ -31,6 +32,7 @@ export interface PlayerOptions {
   zoom: number;
   mode: PracticeMode;
   click: boolean;
+  clickVolume?: number;
   countIn: boolean;
   muted: number[];
   /** Tracks played by an external instrument instead of the built-in sound. */
@@ -87,7 +89,7 @@ export function useScorePlayer(options: PlayerOptions) {
         enableCursor: true,
         enableElementHighlighting: true,
         enableUserInteraction: true,
-        scrollMode: ScrollMode.Continuous,
+        scrollMode: ScrollMode.OffScreen,
         scrollElement: host.current.closest<HTMLElement>('.score-paper')!,
         scrollOffsetY: -8,
         nativeBrowserSmoothScroll: false,
@@ -95,6 +97,7 @@ export function useScorePlayer(options: PlayerOptions) {
       },
     });
     apiRef.current = api;
+    const cursor = new UniformScoreCursor(api, host.current);
     let sounds = new AbortController();
     let soundsStarted = false;
     let samplesReady = false;
@@ -135,6 +138,7 @@ export function useScorePlayer(options: PlayerOptions) {
     api.error.on((error) => latest.current.onStatus({ error: error.message, rendering: false }));
     api.renderStarted.on(() => latest.current.onStatus({ rendering: true }));
     api.renderFinished.on(() => {
+      cursor.redraw();
       latest.current.onStatus({ rendering: false });
       // Paint the notation before starting sample downloads and audio decoding.
       requestAnimationFrame(() => requestAnimationFrame(loadSounds));
@@ -170,9 +174,13 @@ export function useScorePlayer(options: PlayerOptions) {
         requestAnimationFrame(() => requestAnimationFrame(loadSounds));
       }
     });
-    api.playerStateChanged.on((e) => latest.current.onStatus({ playing: e.state === 1 }));
+    api.playerStateChanged.on((e) => {
+      if (e.state !== 1) cursor.pause();
+      if (!latest.current.externalClock) latest.current.onStatus({ playing: e.state === 1 });
+    });
     let lastVisualPosition = -Infinity;
     api.playerPositionChanged.on((e) => {
+      cursor.position(e.currentTick, e.modifiedTempo, !e.isSeek && api.playerState === 1);
       const now = performance.now();
       if (e.isSeek || now - lastVisualPosition >= 50) {
         latest.current.onStatus({ tick: e.currentTick });
@@ -197,6 +205,7 @@ export function useScorePlayer(options: PlayerOptions) {
       effectsRef.current = null;
       latest.current.onReady(null);
       apiRef.current = null;
+      cursor.dispose();
       api.destroy();
     };
   }, []);
@@ -272,6 +281,7 @@ export function useScorePlayer(options: PlayerOptions) {
     options.range.end,
     options.mode,
     options.click,
+    options.clickVolume,
     options.countIn,
     options.track,
     options.muted,

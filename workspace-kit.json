@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "patches": [
     "Seven-day session lifetime from agent-skills branch feat/week-long-sessions",
-    "Optional app API mounted at /api from agent-skills branch feat/app-api"
+    "Optional app API mounted at /api from agent-skills branch feat/app-api",
+    "Safe merged-workspace cleanup and startup reminders from agent-skills branch fix/workspace-cleanup",
+    "Private dev asset caching and coalesced workspace lookup from agent-skills branch fix/workspace-cleanup"
   ]
 }

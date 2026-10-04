@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createServer, type Server } from 'node:http';
 import { createApi, type ApiOptions } from '../../src/server/api';
@@ -28,11 +31,18 @@ const provider = (id: string, extra: Partial<SourceProvider> = {}): SourceProvid
 });
 let server: Server;
 async function start(options: ApiOptions) {
-  server = createServer(createApi(options));
+  const directory = mkdtempSync(resolve(tmpdir(), 'generation-test-'));
+  directories.push(directory);
+  server = createServer(createApi({ ...options, generationJobDir: directory }));
   const base = `http://127.0.0.1:${await listen(server)}`;
   return (path: string, init?: RequestInit) => fetch(base + path, init);
 }
-afterEach(() => close(server));
+const directories: string[] = [];
+afterEach(async () => {
+  await close(server);
+  for (const directory of directories.splice(0))
+    rmSync(directory, { recursive: true, force: true });
+});
 const post = (body: unknown) => ({
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
@@ -91,9 +101,27 @@ describe('generation route', () => {
       { ...wish, prompt: 'x' },
       { ...wish, instrument: 'kazoo' },
       { ...wish, level: 1 },
+      { ...wish, instrumentation: ['guitar'] },
+      { ...wish, instrumentation: 'x'.repeat(601) },
+      { ...wish, currentScore: '' },
+      { ...wish, currentScore: 'x'.repeat(200001) },
+      { ...wish, history: [42] },
+      { ...wish, history: Array(7).fill('edit') },
+      { ...wish, model: 42 },
+      { ...wish, model: 'invalid model' },
+      { ...wish, model: 'a/' + 'x'.repeat(160) },
     ])
       expect((await call('/generate', post(bad))).status).toBe(400);
     expect(generate).toHaveBeenCalledTimes(1);
+    const selected = {
+      ...wish,
+      model: 'provider/selected-model',
+      instrumentation: 'Guitar, bass and drums',
+      currentScore: ':4 0.6 |',
+      history: ['Add a bass part'],
+    };
+    expect((await call('/generate', post(selected))).status).toBe(200);
+    expect(generate).toHaveBeenLastCalledWith(selected);
   });
   it('is off without credentials, passes on known failures and enforces the daily limit', async () => {
     let call = await start({ providers: [], generationReady: () => false });
@@ -117,4 +145,51 @@ describe('generation route', () => {
     expect((await call('/generate', post(wish))).status).toBe(200);
     expect((await call('/generate', post(wish))).status).toBe(429);
   });
+});
+
+it('returns a job immediately while generation is pending and exposes its result without resubmitting', async () => {
+  let finish!: (result: { alphaTex: string }) => void;
+  const generate = vi.fn(
+    () =>
+      new Promise<{ alphaTex: string }>((resolve) => {
+        finish = resolve;
+      }),
+  );
+  const call = await start({ providers: [], generate, generationReady: () => true });
+  const response = await call('/generate', {
+    ...post(wish),
+    headers: { ...post(wish).headers, Prefer: 'respond-async' },
+  });
+  expect(response.status).toBe(202);
+  const { jobId } = await response.json();
+  expect(jobId).toMatch(/^[a-f0-9-]{36}$/);
+  expect(response.headers.get('cache-control')).toContain('no-store');
+  const pending = await call(`/generation/jobs/${jobId}`);
+  expect(pending.status).toBe(202);
+  expect(await pending.json()).toEqual({ pending: true });
+  finish({ alphaTex: ':4 0.6 |' });
+  await vi.waitFor(async () => expect((await call(`/generation/jobs/${jobId}`)).status).toBe(200));
+  const complete = await call(`/generation/jobs/${jobId}`);
+  expect(await complete.json()).toEqual({ alphaTex: ':4 0.6 |' });
+  expect(generate).toHaveBeenCalledOnce();
+  expect((await call('/generation/jobs/missing')).status).toBe(404);
+});
+
+it('returns actionable AI failures through job polling', async () => {
+  const call = await start({
+    providers: [],
+    generationReady: () => true,
+    generate: vi.fn(async () => {
+      throw new GenerationError('Ask for fewer bars.', 422);
+    }),
+  });
+  const response = await call('/generate', {
+    ...post(wish),
+    headers: { ...post(wish).headers, Prefer: 'respond-async' },
+  });
+  const { jobId } = await response.json();
+  await vi.waitFor(async () => expect((await call(`/generation/jobs/${jobId}`)).status).toBe(422));
+  const failed = await call(`/generation/jobs/${jobId}`);
+  expect(failed.status).toBe(422);
+  expect(await failed.json()).toEqual({ error: 'Ask for fewer bars.' });
 });

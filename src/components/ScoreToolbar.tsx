@@ -7,7 +7,7 @@ import {
   MIN_SCORE_ZOOM,
   SCORE_ZOOM_STEP,
 } from '../app/scoreZoom';
-import type { PracticeMode, View } from '../domain/types';
+import type { View } from '../domain/types';
 
 export function ScoreToolbar() {
   const r = useRoom();
@@ -17,10 +17,8 @@ export function ScoreToolbar() {
         <Music2 size={16} />
         <select
           aria-label="Your instrument part"
-          disabled={r.takes.recording}
           value={r.track}
           onChange={(event) => {
-            r.halt();
             r.setTrack(Number(event.target.value));
           }}
         >
@@ -31,33 +29,7 @@ export function ScoreToolbar() {
           ))}
         </select>
       </div>
-      <div className="segmented small playback-modes" role="group" aria-label="Playback mode">
-        {(
-          [
-            ['listen', 'Listen'],
-            ['along', 'Play along'],
-            ['assess', 'Record take'],
-          ] satisfies [PracticeMode, string][]
-        ).map(([mode, label]) => (
-          <button
-            key={mode}
-            aria-pressed={r.mode === mode}
-            className={r.mode === mode ? 'active' : ''}
-            disabled={r.takes.recording}
-            onClick={() => r.setMode(mode)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
       <TransposeControl />
-      <span className="mode-hint">
-        {r.mode === 'along'
-          ? 'Your part is muted'
-          : r.mode === 'assess'
-            ? 'Clean single notes'
-            : ''}
-      </span>
       <div className="segmented small" aria-label="Notation view">
         {(['both', 'score', 'tab'] as View[]).map((view) => (
           <button

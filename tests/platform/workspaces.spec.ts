@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync, mkdirSync, rmSync, symlinkSync } from 'node
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { cleanupWorkspaces } from '../../src/platform/cleanup';
 import { repository } from '../../src/platform/config';
 import { startWorkspace, stopWorkspace } from '../../src/platform/workspaces';
 import { listWorkspaces, readWorkspace, running, workspaceId } from '../../src/platform/registry';
@@ -68,6 +69,16 @@ describe('workspace process lifecycle', () => {
     expect(next.pid).not.toBe(first.pid);
     expect(next.token).not.toBe(first.token);
   }, 15000);
+  it('cleanup stops the merged workspace before removing its files and registry entry', async () => {
+    git('remote', 'add', 'origin', root);
+    git('fetch', 'origin');
+    const path = resolve(root, 'completed');
+    git('worktree', 'add', '-b', 'dev/completed', path);
+    const workspace = await startWorkspace(path);
+    await cleanupWorkspaces(root, true);
+    expect(await running(workspace)).toBe(false);
+    expect(await listWorkspaces(repository(root).registry)).toEqual([]);
+  }, 10000);
   it('does not list a workspace after its worktree changes branch', async () => {
     git('switch', '-c', 'dev/first');
     await startWorkspace(root);

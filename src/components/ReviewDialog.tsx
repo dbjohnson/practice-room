@@ -218,7 +218,6 @@ export function ReviewDialog() {
                           },
                     );
                   if (advice.kind === 'timing') r.setClick(true);
-                  r.setMode('along');
                   r.setPage('practice');
                 }}
               >

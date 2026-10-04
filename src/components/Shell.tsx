@@ -16,6 +16,7 @@ import { useRoom } from '../app/RoomContext';
 import type { Page } from '../domain/types';
 import { AccountControls } from './AccountControls';
 import { useTheme } from '../app/useTheme';
+import { libraryPieces } from '../music/libraryView';
 
 const pages = [
   { id: 'practice' as Page, name: 'Music', Icon: BookOpen },
@@ -43,6 +44,9 @@ export function Shell({ children }: { children: ReactNode }) {
         Skip to music
       </a>
       <header className="app-header">
+        <button className="navigation-toggle" popoverTarget={menuId} aria-label="Open navigation">
+          <Menu size={18} />
+        </button>
         <button
           className="brand"
           onClick={() => room.setPage('practice')}
@@ -50,10 +54,6 @@ export function Shell({ children }: { children: ReactNode }) {
         >
           <AudioLines size={23} strokeWidth={1.5} />
           <span>practice room.</span>
-        </button>
-        <button className="navigation-toggle" popoverTarget={menuId} aria-label="Open navigation">
-          <Menu size={18} />
-          <span>{pages.find((page) => page.id === room.page)?.name}</span>
         </button>
         <div className="header-actions">
           <button
@@ -92,7 +92,9 @@ export function Shell({ children }: { children: ReactNode }) {
             >
               <Icon size={18} strokeWidth={1.6} />
               {name}
-              {id === 'library' && <span className="nav-count">{room.library.pieces.length}</span>}
+              {id === 'library' && (
+                <span className="nav-count">{libraryPieces(room.library.pieces).length}</span>
+              )}
             </button>
           ))}
         </nav>

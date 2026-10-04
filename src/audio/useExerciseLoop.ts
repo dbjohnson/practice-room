@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import type { AlphaTabApi } from '@coderline/alphatab';
 import { ExerciseLoopPlayer, type LoopPosition } from './ExerciseLoopPlayer';
-import { renderExerciseLoop, type ExerciseLoopOptions } from './exerciseLoopBuffer';
+import type { ExerciseLoopOptions } from './exerciseLoopBuffer';
+import { renderLoopStems } from './renderLoopStems';
+import type { LoopMix } from './TrackLoopSources';
 
 export function useExerciseLoop(
   api: RefObject<AlphaTabApi | null>,
@@ -11,13 +13,18 @@ export function useExerciseLoop(
     playing: (playing: boolean) => void;
     notify: (message: string) => void;
     beat?: (at: number) => void;
+    finished?: () => void;
   },
   clickEnabled: boolean,
+  mix?: LoopMix,
+  clickVolume = 55,
 ) {
+  const liveMix = useRef(mix);
+  liveMix.current = mix;
   const latest = useRef(callbacks);
   latest.current = callbacks;
-  const click = useRef(clickEnabled);
-  click.current = clickEnabled;
+  const click = useRef({ enabled: clickEnabled, volume: clickVolume });
+  click.current = { enabled: clickEnabled, volume: clickVolume };
   const [active, setActive] = useState(false);
   const [preparing, setPreparing] = useState(false);
   const player = useRef<ExerciseLoopPlayer | null>(null);
@@ -25,7 +32,7 @@ export function useExerciseLoop(
   const cache = useRef<{
     score: ExerciseLoopOptions['score'];
     key: string;
-    audio: Awaited<ReturnType<typeof renderExerciseLoop>>;
+    audio: Awaited<ReturnType<typeof renderLoopStems>>;
   } | null>(null);
   const stop = () => {
     controller.current?.abort();
@@ -39,6 +46,7 @@ export function useExerciseLoop(
     countIn: boolean,
     swing: number | null,
     begin: () => boolean,
+    startTick?: number,
   ) => {
     stop();
     const request = new AbortController();
@@ -50,27 +58,26 @@ export function useExerciseLoop(
       await loop.context.resume();
       const currentApi = api.current;
       if (!currentApi) return;
+      // Invalidate buffers from the old exporter when this dev module refreshes.
       const key = JSON.stringify([
+        'shared-synth-v2',
         options.tempo,
-        options.track,
-        options.mode,
-        options.muted,
-        options.volumes,
         options.effects,
+        options.range,
         swing,
       ]);
       const audio =
         cache.current?.score === options.score && cache.current.key === key
           ? cache.current.audio
-          : await renderExerciseLoop(currentApi, options, loop.context, request.signal);
+          : await renderLoopStems(currentApi, options, loop.context, request.signal);
       request.signal.throwIfAborted();
       cache.current = { score: options.score, key, audio };
       await loop.prepareClick(request.signal);
       request.signal.throwIfAborted();
       if (!begin()) return;
       currentApi.pause();
-      currentApi.tickPosition = 0;
-      loop.setClick(click.current);
+      currentApi.tickPosition = audio.timing?.startTick ?? 0;
+      loop.setClick(click.current.enabled, click.current.volume);
       loop.startLoop(
         audio.buffer,
         audio.end,
@@ -82,6 +89,23 @@ export function useExerciseLoop(
         },
         (ended) => latest.current.pass(ended),
         (at) => latest.current.beat?.(at),
+        audio.timing,
+        audio.stems,
+        liveMix.current ?? options,
+        startTick === undefined
+          ? 0
+          : Math.max(
+              0,
+              Math.min(
+                audio.buffer.duration - 0.001,
+                audio.timing.secondsAt?.(Math.max(audio.timing.startTick, startTick)) ?? 0,
+              ),
+            ),
+        () => {
+          setActive(false);
+          latest.current.playing(false);
+          latest.current.finished?.();
+        },
       );
       setActive(true);
       latest.current.playing(true);
@@ -95,8 +119,11 @@ export function useExerciseLoop(
     }
   };
   useEffect(() => {
-    player.current?.setClick(clickEnabled);
-  }, [clickEnabled]);
+    if (mix) player.current?.setMix(mix);
+  }, [mix]);
+  useEffect(() => {
+    player.current?.setClick(clickEnabled, clickVolume);
+  }, [clickEnabled, clickVolume]);
   useEffect(
     () => () => {
       controller.current?.abort();
@@ -105,5 +132,11 @@ export function useExerciseLoop(
     },
     [],
   );
-  return { active, preparing, start, stop };
+  return {
+    active,
+    preparing,
+    start,
+    stop,
+    setLooping: (value: boolean) => player.current?.setLooping(value),
+  };
 }

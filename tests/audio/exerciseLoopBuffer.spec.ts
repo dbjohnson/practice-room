@@ -31,7 +31,11 @@ function fixture() {
     volumes: {},
     effects: { compression: 0, reverb: 0 },
   };
-  return { api: { settings: new Settings(), endTick: end } as AlphaTabApi, options, end };
+  return {
+    api: { settings: new Settings(), endTick: end, tickCache: generator.tickLookup } as AlphaTabApi,
+    options,
+    end,
+  };
 }
 
 it('duplicates the MIDI without moving attacks and scales tempo once for both cycles', () => {
@@ -53,43 +57,57 @@ it('duplicates the MIDI without moving attacks and scales tempo once for both cy
   ).toBe(true);
 });
 
-it('renders a sample-exact backing cycle without baking in the live metronome', async () => {
-  const { api, options, end } = fixture();
-  const player = silentPlayer();
-  let renderer: synth.IAlphaSynthAudioExporter;
-  const exporter = {
-    initialize: async (
-      settings: synth.AudioExportOptions,
-      file: midi.MidiFile,
-      sync: [],
-      pitches: Map<number, number>,
-    ) => {
-      settings.soundFonts = [bank];
-      renderer = player.exportAudio(settings, file, sync, pitches);
-    },
-    render: async (milliseconds: number) => renderer.render(milliseconds),
-    destroy: vi.fn(),
-  };
-  Object.assign(api, { uiFacade: { createWorkerAudioExporter: () => exporter } });
-  const channels: Float32Array[] = [];
-  const context = {
-    sampleRate: 48000,
-    createBuffer: (count: number, length: number, rate: number) => {
-      for (let i = 0; i < count; i++) channels.push(new Float32Array(length));
-      return { duration: length / rate, getChannelData: (channel: number) => channels[channel] };
-    },
-  };
-  const audio = await renderExerciseLoop(
-    api,
-    options,
-    context as unknown as AudioContext,
-    new AbortController().signal,
-  );
-  expect(audio.buffer.duration).toBe((end / 960) * 0.5);
-  expect(channels[0].length).toBe(Math.round(audio.buffer.duration * 48000));
-  expect(channels[0].every(Number.isFinite)).toBe(true);
-  // This play-along part is muted, so click=true must not put click audio in its buffer.
-  expect(channels[0].every((value) => value === 0)).toBe(true);
-  expect(exporter.destroy).toHaveBeenCalledOnce();
-  player.destroy();
+it.each([false, true])(
+  'renders the selected guitar unless explicitly muted (%s), without baking in the click',
+  async (muted) => {
+    const { api, options, end } = fixture();
+    const player = silentPlayer();
+    let renderer: synth.IAlphaSynthAudioExporter;
+    const exporter = {
+      initialize: async (
+        settings: synth.AudioExportOptions,
+        file: midi.MidiFile,
+        sync: [],
+        pitches: Map<number, number>,
+      ) => {
+        settings.soundFonts = [bank];
+        renderer = player.exportAudio(settings, file, sync, pitches);
+      },
+      render: async (milliseconds: number) => renderer.render(milliseconds),
+      destroy: vi.fn(),
+    };
+    Object.assign(api, { uiFacade: { createWorkerAudioExporter: () => exporter } });
+    const channels: Float32Array[] = [];
+    const context = {
+      sampleRate: 48000,
+      createBuffer: (count: number, length: number, rate: number) => {
+        for (let i = 0; i < count; i++) channels.push(new Float32Array(length));
+        return { duration: length / rate, getChannelData: (channel: number) => channels[channel] };
+      },
+    };
+    const audio = await renderExerciseLoop(
+      api,
+      { ...options, muted: muted ? [0] : [] },
+      context as unknown as AudioContext,
+      new AbortController().signal,
+    );
+    expect(audio.buffer.duration).toBe((end / 960) * 0.5);
+    expect(channels[0].length).toBe(Math.round(audio.buffer.duration * 48000));
+    expect(channels[0].every(Number.isFinite)).toBe(true);
+    // The selected part is audible in playback; only explicit mute silences it.
+    expect(channels[0].every((value) => value === 0)).toBe(muted);
+    expect(exporter.destroy).toHaveBeenCalledOnce();
+    player.destroy();
+  },
+);
+
+it('renders only the requested middle passage', async () => {
+  const { api, options } = fixture();
+  const range = { start: 2, end: 2 };
+  const { end, timing, file } = exerciseLoopMidi(api, { ...options, range });
+  expect(timing.startTick).toBe(api.tickCache!.getMasterBarStart(options.score.masterBars[1]));
+  expect(end).toBe(options.score.masterBars[1].calculateDuration());
+  expect(timing.duration).toBe((end / 960) * 0.5);
+  const notes = file.events.filter((e) => e instanceof midi.NoteOnEvent);
+  expect(notes.every((e) => e.tick >= 0 && e.tick < end * 2)).toBe(true);
 });

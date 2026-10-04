@@ -81,5 +81,7 @@ it('explains server errors and a missing server in plain words', async () => {
     'Type at least two characters to search.',
   );
   search('abc');
-  await screen.findByText('Finding and creating music needs the Practice Room server.');
+  await screen.findByText(
+    'The server returned a page instead of data. Reload to restore your session and try again.',
+  );
 });

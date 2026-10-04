@@ -5,7 +5,11 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { ClickControl } from '../../src/components/ClickControl';
 const room = {
   click: true,
+  clickVolume: 55,
+  setClickVolume: vi.fn(),
   setClick: vi.fn(),
+  flash: false,
+  setFlash: vi.fn(),
   player: { playing: true, beatAt: 1000 },
   takes: { recording: true },
 };
@@ -15,25 +19,25 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
 });
-it('keeps click enabled during recording and flashes on clock updates even when audio is muted', () => {
-  vi.spyOn(performance, 'now').mockReturnValue(1020);
+it('toggles the metronome and score flash independently during recording', () => {
   const { rerender } = render(createElement(ClickControl));
-  const button = screen.getByRole('button', { name: 'Click' }) as HTMLButtonElement;
-  expect(button.disabled).toBe(false);
-  expect(button.getAttribute('aria-pressed')).toBe('true');
-  fireEvent.click(button);
+  const click = screen.getByRole('button', { name: 'Metronome click' }) as HTMLButtonElement;
+  const flash = screen.getByRole('button', { name: 'Score flash' }) as HTMLButtonElement;
+  expect(click.disabled).toBe(false);
+  expect(flash.disabled).toBe(false);
+  expect(click.getAttribute('aria-pressed')).toBe('true');
+  expect(flash.getAttribute('aria-pressed')).toBe('false');
+  expect(click.textContent).toBe('');
+  expect(flash.textContent).toBe('');
+  expect(screen.queryByRole('slider', { name: 'Metronome volume' })).toBeNull();
+  fireEvent.click(flash);
+  expect(room.setFlash).toHaveBeenCalledExactlyOnceWith(true);
+  expect(room.setClick).not.toHaveBeenCalled();
+  fireEvent.click(click);
   expect(room.setClick).toHaveBeenCalledExactlyOnceWith(false);
-  const first = button.querySelector('.is-beating') as HTMLElement;
-  expect(first.style.animationDelay).toBe('-20ms');
   room.click = false;
-  room.player.beatAt = 1500;
-  vi.mocked(performance.now).mockReturnValue(1510);
+  room.flash = true;
   rerender(createElement(ClickControl));
-  const second = button.querySelector('.is-beating') as HTMLElement;
-  expect(second).not.toBe(first);
-  expect(second.style.animationDelay).toBe('-10ms');
-  expect(button.getAttribute('aria-pressed')).toBe('false');
-  room.player.playing = false;
-  rerender(createElement(ClickControl));
-  expect(button.querySelector('.is-beating')).toBeNull();
+  expect(click.getAttribute('aria-pressed')).toBe('false');
+  expect(flash.getAttribute('aria-pressed')).toBe('true');
 });

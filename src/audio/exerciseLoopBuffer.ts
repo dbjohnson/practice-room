@@ -2,6 +2,8 @@ import { midi, synth, type AlphaTabApi } from '@coderline/alphatab';
 import type { PlayerOptions } from './useScorePlayer';
 import { naturalPlayback } from './naturalPlayback';
 import { exercisePlayback } from './exercisePlayback';
+import { playbackRange } from '../music/scoreTimeline';
+import { repeatMidiRange, midiLoopTiming } from './loopMidi';
 import { PlaybackEffects } from './PlaybackEffects';
 export type ExerciseLoopOptions = Pick<
   PlayerOptions,
@@ -15,7 +17,8 @@ export type ExerciseLoopOptions = Pick<
   | 'muted'
   | 'volumes'
   | 'effects'
->;
+> &
+  Partial<Pick<PlayerOptions, 'range' | 'routed'>>;
 
 /** Two cycles let held notes and room tails cross the wrap before caching a cycle. */
 export function exerciseLoopMidi(api: AlphaTabApi, options: ExerciseLoopOptions) {
@@ -29,27 +32,25 @@ export function exerciseLoopMidi(api: AlphaTabApi, options: ExerciseLoopOptions)
   generator.generate();
   naturalPlayback(original, options.recipe);
   exercisePlayback(original, options.exerciseArticulation);
-  const end = api.endTick;
-  const file = new midi.MidiFile();
-  file.division = original.division;
-  for (let pass = 0; pass < 2; pass++)
-    for (const event of original.events) {
-      if (event instanceof midi.EndOfTrackEvent || event.tick > end) continue;
-      const copy = Object.assign(
-        Object.create(Object.getPrototypeOf(event)),
-        event,
-      ) as midi.MidiEvent;
-      copy.tick += pass * end;
-      if (copy instanceof midi.TempoChangeEvent)
-        copy.beatsPerMinute *= options.tempo / options.score.tempo;
-      file.addEvent(copy);
-    }
-  for (let track = 0; track < original.tracks.length; track++)
-    file.addEvent(new midi.EndOfTrackEvent(track, end * 2));
-  return {
-    file,
-    duration: ((end / original.division) * 60) / options.tempo,
+  const range = options.range ? playbackRange(api, options.score, options.range) : null;
+  const start = range?.startTick ?? 0;
+  const end = range?.endTick ?? api.endTick;
+  const speed = options.tempo / options.score.tempo;
+  const bar = options.score.masterBars[(options.range?.start ?? 1) - 1];
+  const timing = midiLoopTiming(
+    original,
+    start,
     end,
+    speed,
+    options.score.tempo,
+    bar?.timeSignatureNumerator,
+    bar?.timeSignatureDenominator,
+  );
+  return {
+    file: repeatMidiRange(original, start, end, speed),
+    duration: timing.duration,
+    end: end - start,
+    timing,
     transpositions: generator.transpositionPitches,
   };
 }
@@ -60,11 +61,10 @@ export async function renderExerciseLoop(
   context: AudioContext,
   signal: AbortSignal,
 ) {
-  const { file, duration, end, transpositions } = exerciseLoopMidi(api, options);
+  const { file, duration, end, timing, transpositions } = exerciseLoopMidi(api, options);
   const sampleRate = context.sampleRate;
   const frames = Math.round(duration * sampleRate);
-  if (frames <= 0 || duration > 600)
-    throw new Error('Keep a continuous exercise loop under ten minutes.');
+  if (frames <= 0 || duration > 600) throw new Error('Keep a continuous loop under ten minutes.');
   const settings = new synth.AudioExportOptions();
   settings.sampleRate = sampleRate;
   settings.useSyncPoints = false;
@@ -72,14 +72,18 @@ export async function renderExerciseLoop(
   settings.metronomeVolume = 0;
   for (const track of options.score.tracks) {
     const volume =
-      options.muted.includes(track.index) ||
-      (options.mode !== 'listen' && options.track === track.index)
+      options.muted.includes(track.index) || options.routed?.includes(track.index)
         ? 0
         : (options.volumes[track.index] ?? 80) / 100;
     settings.trackVolume.set(track.playbackInfo.primaryChannel, volume);
     settings.trackVolume.set(track.playbackInfo.secondaryChannel, volume);
   }
-  const exporter = api.uiFacade.createWorkerAudioExporter(api.player);
+  // alphaTab 1.8 exposes a player facade; its own exportAudio passes the underlying
+  // instance. Passing the facade creates a new worker without the loaded SoundFont.
+  const player = api.player as
+    (NonNullable<AlphaTabApi['player']> & { instance?: AlphaTabApi['player'] }) | null;
+  const instance = player && 'instance' in player ? player.instance : player;
+  const exporter = api.uiFacade.createWorkerAudioExporter(instance ?? null);
   try {
     await exporter.initialize(settings, file, [], transpositions);
     signal.throwIfAborted();
@@ -104,7 +108,7 @@ export async function renderExerciseLoop(
       for (let frame = 0; frame < frames; frame++)
         output[frame] = processed[(frames + frame) * 2 + channel];
     }
-    return { buffer, end };
+    return { buffer, end, timing };
   } finally {
     exporter.destroy();
   }

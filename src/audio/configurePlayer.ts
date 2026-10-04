@@ -5,8 +5,13 @@ import { playbackRange } from '../music/scoreTimeline';
 export function configurePlayer(api: AlphaTabApi, options: PlayerOptions, forceRange = false) {
   api.playbackSpeed = options.tempo / options.score.tempo;
   api.isLooping = options.loop && options.mode !== 'assess' && !options.replaying;
-  api.metronomeVolume = options.click ? 0.55 : 0;
-  api.countInVolume = options.countIn && !options.replaying ? 0.6 : 0;
+  api.metronomeVolume = options.click ? (options.clickVolume ?? 55) / 100 : 0;
+  // alphaTab uses a positive volume to enable count-in timing. Keep a silent
+  // count-in for visual-only practice instead of skipping its beats entirely.
+  api.countInVolume =
+    options.countIn && !options.replaying
+      ? Math.max(Number.EPSILON, options.click ? (options.clickVolume ?? 55) / 100 : 0)
+      : 0;
   const range = playbackRange(api, options.score, options.range);
   if (
     range &&
@@ -20,8 +25,7 @@ export function configurePlayer(api: AlphaTabApi, options: PlayerOptions, forceR
       [track],
       options.muted.includes(track.index) ||
         options.routed?.includes(track.index) ||
-        (options.replaying && !options.replayBacking) ||
-        (options.mode !== 'listen' && options.track === track.index),
+        (options.replaying && !options.replayBacking),
     );
     api.changeTrackVolume([track], (options.volumes[track.index] ?? 80) / 100);
   }
