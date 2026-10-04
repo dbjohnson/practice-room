@@ -1,7 +1,6 @@
 import type { Settings } from '@coderline/alphatab';
-import type { ExerciseLoopOptions } from './exerciseLoopBuffer';
 import type { LoadedSample, SampleManifest } from './soundfont/sampleTypes';
-import { requiredSamples } from './requiredSamples';
+import { requiredSamples, type SampleSource } from './requiredSamples';
 import { assembleSamples } from './soundfont/assembleSamples';
 import { loadSampleAsset } from './loadSampleAsset';
 
@@ -29,7 +28,7 @@ async function catalog(base: string, version: string) {
 export async function loadScoreSamples(
   base: string,
   version: string,
-  options: ExerciseLoopOptions,
+  options: SampleSource,
   settings: Settings,
   signal: AbortSignal,
 ) {

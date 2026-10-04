@@ -4,9 +4,12 @@ import type { SampleManifest } from './soundfont/sampleTypes';
 import { naturalPlayback } from './naturalPlayback';
 import { exercisePlayback } from './exercisePlayback';
 
+/** What decides which notes sound, and so which samples a score needs. */
+export type SampleSource = Pick<ExerciseLoopOptions, 'score' | 'recipe' | 'exerciseArticulation'>;
+
 export function requiredSamples(
   manifest: SampleManifest,
-  options: ExerciseLoopOptions,
+  options: SampleSource,
   settings: Settings,
 ) {
   const file = new midi.MidiFile();

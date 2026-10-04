@@ -69,6 +69,8 @@ export function FindMusic({
               <SourceSearch
                 sources={available.sources}
                 busy={room.library.busy}
+                shown={mode === 'search'}
+                onPreview={room.halt}
                 onAdd={(hit, name, filename, bytes) => {
                   room.halt();
                   void added(
