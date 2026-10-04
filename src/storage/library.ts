@@ -13,11 +13,14 @@ function openDatabase(): Promise<IDBDatabase> {
   });
 }
 export async function storeScore(id: string, buffer: ArrayBuffer): Promise<void> {
+  return storeScores([{ id, buffer }]);
+}
+export async function storeScores(scores: { id: string; buffer: ArrayBuffer }[]): Promise<void> {
   const db = await openDatabase();
   try {
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction('scores', 'readwrite');
-      tx.objectStore('scores').put(buffer, id);
+      for (const { id, buffer } of scores) tx.objectStore('scores').put(buffer, id);
       tx.oncomplete = () => resolve();
       tx.onerror = () =>
         reject(new Error('Could not save this score. Browser storage may be full.'));
@@ -41,11 +44,14 @@ export async function readScore(id: string): Promise<ArrayBuffer | undefined> {
   }
 }
 export async function removeScore(id: string): Promise<void> {
+  return removeScores([id]);
+}
+export async function removeScores(ids: string[]): Promise<void> {
   const db = await openDatabase();
   try {
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction('scores', 'readwrite');
-      tx.objectStore('scores').delete(id);
+      for (const id of ids) tx.objectStore('scores').delete(id);
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });

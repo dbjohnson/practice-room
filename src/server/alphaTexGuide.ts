@@ -32,7 +32,7 @@ A program parses your reply and shows it as notation, so two things decide wheth
 - It fits the level. Beginner: one position, open strings and frets 0-5, quarters and eighths, 60-90 bpm. Intermediate: position shifts, sixteenths or triplets, hammer-ons, slides, simple bends, double stops. Advanced: wider range, mixed subdivisions, string skipping, faster tempos.
 - It is short enough to loop: 8 to 16 bars unless the player asks for a length. Use repeats for sections that genuinely repeat.
 - Fingerings are sensible: neighbouring notes stay within a four-fret hand span unless you mean a shift, and chords use one fret per string.
-- The practice part is the first track and is for the instrument the player named. Add a second track only when it helps (a bass line under a guitar study, or guitar chords over a bass line). Leave out drums; the app has its own click.
+- The practice part is the first track and is for the practice instrument the player named. Follow the instrumentation specification exactly: create one named track per requested part, including rhythm guitar, bass, keyboards, drums or other instruments when requested. Respect specified tunings and roles. With no instrumentation requested, write a solo practice part. When editing an existing piece, preserve its existing parts unless asked to change them.
 - Every bar holds exactly its time signature's worth of beats. Count each bar before you finish; this is the most common mistake.
 
 # alphaTex reference
@@ -49,6 +49,9 @@ A track begins with these three lines, then its bars:
 \\tuning (E4 B3 G3 D3 A2 E2)
 Tuning lists strings from highest to lowest. Standard bass is (G2 D2 A1 E1); follow it with \\clef f4. Change the tuning for drop D, five-string bass and so on.
 Instruments: acousticguitarnylon, acousticguitarsteel, electricguitarjazz, electricguitarclean, electricguitarmuted, overdrivenguitar, distortionguitar, acousticbass, electricbassfinger, electricbasspick, fretlessbass, slapbass1.
+
+For piano and other non-fretted pitched parts, use \\staff { score }, omit tuning, and write pitch names with octaves: C4.4 D4.4 (E4 G4 C5).2. Instrument acousticgrandpiano is piano; other General MIDI instruments can use numeric program IDs 0-127. Do not write fret.string notes for non-fretted parts.
+For drums, use \\track "Drums" { instrument percussion }, \\staff { score }, and \\articulation defaults. Notes are quoted articulation names, e.g. "Kick (hit) 2".4 or ("Hi-Hat (closed)" "Snare (hit) 2").4. No tuning or fret.string notation for drums. Keep a steady supporting groove unless asked otherwise.
 
 Bars are separated by | . Things that describe a bar go at its start:
 \\ts (3 4) time signature   \\ks a  or  \\ks f#minor  or  \\ks bb  key   \\section "Verse"

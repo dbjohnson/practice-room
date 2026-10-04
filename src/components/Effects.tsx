@@ -3,7 +3,6 @@ import { SwingControl } from './SwingControl';
 
 export function Effects() {
   const r = useRoom();
-  const locked = r.takes.recording || r.exerciseLoop.active || r.exerciseLoop.preparing;
   return (
     <section className="effects-panel" aria-label="Effects controls">
       {(
@@ -25,7 +24,6 @@ export function Effects() {
             aria-label={label}
             aria-valuetext={r.mixEffects[key] ? `${r.mixEffects[key]} percent` : 'Off'}
             value={r.mixEffects[key]}
-            disabled={locked}
             onChange={(e) =>
               r.setMixEffects((effects) => ({ ...effects, [key]: Number(e.target.value) }))
             }
@@ -37,9 +35,6 @@ export function Effects() {
         </label>
       ))}
       <SwingControl />
-      {(r.exerciseLoop.active || r.exerciseLoop.preparing) && (
-        <small>Stop the loop to adjust effects.</small>
-      )}
     </section>
   );
 }

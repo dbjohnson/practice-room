@@ -205,7 +205,6 @@ export function JamPage() {
               className="button button-primary"
               onClick={() => {
                 r.library.saveJam(recipe);
-                r.setMode('listen');
                 r.setPage('practice');
                 r.notify('Your band is ready. Press play to listen, or mute a part and join in.');
               }}

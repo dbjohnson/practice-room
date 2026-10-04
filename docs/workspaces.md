@@ -16,6 +16,8 @@ npm run workspace -- status
 npm run workspace -- list
 npm run workspace -- restart
 npm run workspace -- stop
+npm run workspace -- cleanup          # preview other linked workspaces
+npm run workspace -- cleanup --apply  # after authorization to close merged work
 ```
 
 `new` fetches the configured base branch, creates `dev/<name>` in `.worktrees/`,
@@ -38,6 +40,36 @@ A stopped build reports that it stopped instead of silently serving production.
 The local URL works without Google through a localhost SSH forward. Microphone
 access requires HTTPS or localhost. The public gateway must be deployed before
 the public build links work; `start` does not deploy it.
+
+### Local browser access without Google login
+
+Direct Vite development needs no Google sign-in. Use the printed local URL. A
+preview/browser on a different computer needs an SSH forward to that dev port:
+
+```sh
+ssh -N -L <local-port>:127.0.0.1:<dev-port> <user>@<server>
+# Open http://localhost:<local-port>/dev/build/<id>/ in that browser.
+```
+
+Keep the tunnel running while testing. Public build links still require Google
+sign-in. A connection refused on localhost usually means the forward is absent;
+changing the public gateway's authentication does not fix that connection.
+
+## Retire completed workspaces
+
+`new`, `start` and `restart` remind you when other clean, merged dev worktrees
+remain. Run `cleanup` to inspect candidates. It previews against the last fetched
+`origin/<baseBranch>`; `cleanup --apply` fetches again, stops each eligible server
+through its authenticated control endpoint, then removes its worktree without force.
+The caller and primary checkout are always protected. Locked worktrees, non-dev
+branches, uncommitted changes and unmerged commits are retained. Git ancestry must
+prove the merge; squash merges require manual review. Branches and browser data
+remain. A failed fetch aborts cleanup. Startup never closes another session by itself.
+
+After the owner authorizes closing completed work, run cleanup from another
+checkout. A request to clean stale builds authorizes that cleanup; do not ask again.
+An unmerged session can be stopped explicitly in its worktree while retaining its
+files. Review `workspace list` afterward to confirm which servers remain.
 
 ## Google sign-in and the public gateway
 
@@ -173,3 +205,8 @@ runtime. Shared fixes belong upstream first; compare releases and apply reviewed
 updates to each app, preserving its configuration and local changes. Pulling the
 skill repository does not update or deploy adopting apps, and rerunning adoption
 never blindly overwrites existing files.
+
+
+### Development reload performance
+
+The gateway reuses workspace lookups for one second during asset request bursts. Authentication still runs for each request. JavaScript, CSS, fonts, images and audio use private browser caching: content-versioned URLs can be reused, while unversioned assets require revalidation. HTML, API responses, errors and upstream `no-store` responses are not cached. Gateway changes take effect only after an authorized gateway update/restart; Vite hot reload does not update the gateway.

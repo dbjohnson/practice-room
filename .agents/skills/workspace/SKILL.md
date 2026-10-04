@@ -17,3 +17,9 @@ into worktrees, signal stored PIDs manually or alter the production service.
 When adopting this pattern in another app, run `npm run workspace:adopt -- --help`
 and preview proposed changes before using its `--write` option. The target must
 supply its own origin, ports and credentials; do not transfer `.env`.
+
+Startup reports clean, merged workspaces left behind. When the owner asks to clean
+stale builds, run `npm run workspace -- cleanup` to inspect and `cleanup --apply`
+to stop and remove clean, merged linked worktrees. This request authorizes cleanup;
+do not ask again. Unmerged work can be stopped explicitly but must be retained.
+Use `list` afterward to verify the remaining servers.

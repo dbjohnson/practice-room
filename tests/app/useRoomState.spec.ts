@@ -57,7 +57,7 @@ async function setup() {
     hook.result.current.setTrack(1);
     hook.result.current.setTempo(60);
     hook.result.current.setRange({ start: 2, end: 2 });
-    hook.result.current.setMode('assess');
+    hook.result.current.setLoop(false);
   });
   fixture.player.pause.mockClear();
   act(() => hook.result.current.play());
@@ -285,6 +285,7 @@ describe('practice settings', () => {
     const blues = first.result.current.library.pieces[1];
     act(() => {
       first.result.current.setClick(true);
+      first.result.current.setFlash(true);
       first.result.current.setCountIn(false);
       first.result.current.setLoop(false);
       first.result.current.setMixEffects((effects) => ({ ...effects, reverb: 10 }));
@@ -298,7 +299,7 @@ describe('practice settings', () => {
     });
     first.unmount();
     const { result } = renderHook(useRoomState);
-    expect(result.current).toMatchObject({ click: true, countIn: false, loop: false });
+    expect(result.current).toMatchObject({ click: true, flash: true, countIn: false, loop: false });
     expect(result.current.mixEffects.reverb).toBe(10);
     // The open piece comes from the page address; its settings come back when it is opened.
     const study = result.current.library.piece;
@@ -365,7 +366,7 @@ describe('recording with a MIDI instrument', () => {
       result.current.setTrack(chordTrack);
       result.current.setTempo(60);
       result.current.setRange({ start: 1, end: 1 });
-      result.current.setMode('assess');
+      result.current.setLoop(false);
     });
     expect(result.current.page).toBe('practice');
     act(() => result.current.play());

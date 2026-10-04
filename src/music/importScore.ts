@@ -2,6 +2,7 @@ import type { model } from '@coderline/alphatab';
 import type { PieceOrigin } from '../domain/sources';
 import type { Piece } from '../domain/types';
 import { loadScore } from './loadScore';
+import { scoreKey } from './transposeScore';
 import { isMidi } from './midi/parseMidi';
 
 export const importExtensions = [
@@ -75,11 +76,11 @@ export async function importBytes(
     piece: {
       id,
       title,
-      subtitle: origin?.artist || score.artist || 'Your imported score',
+      subtitle: origin?.artist || score.subTitle || score.artist || 'Your imported score',
       source: 'import',
       bpm: Math.round(score.tempo) || 80,
       bars: score.masterBars.length,
-      key: 'Imported',
+      key: scoreKey(score).label,
       tags: [
         origin?.source === 'generated'
           ? 'AI'

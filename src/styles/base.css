@@ -146,8 +146,7 @@ h3 {
   align-items: center;
   gap: 8px;
   background: transparent;
-  border-left: 1px solid var(--border);
-  padding: 7px 0 7px 18px;
+  padding: 7px 10px 7px 0;
   font-size: 12px;
   color: var(--secondary-fg, #677765);
 }
@@ -533,7 +532,7 @@ h1 {
     gap: 7px;
   }
   .navigation-toggle {
-    padding-left: 12px;
+    padding-left: 0;
   }
   .navigation-toggle span,
   .input-label {

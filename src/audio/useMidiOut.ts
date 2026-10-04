@@ -117,7 +117,7 @@ export function useMidiOut(options: MidiOutOptions) {
     };
   }, [scheduler, options.playing, hasRoutes, route]);
   const onPosition = useCallback(
-    (tick: number) => scheduler.position(tick, performance.now() / 1000),
+    (tick: number, at = performance.now() / 1000) => scheduler.position(tick, at),
     [scheduler],
   );
   /** Track indexes whose built-in sound is replaced by a connected output. */

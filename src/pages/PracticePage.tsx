@@ -1,3 +1,6 @@
+import { useState } from 'react';
+import { PieceVersionSelect } from '../components/PieceVersionSelect';
+import { ScoreChat } from '../components/ScoreChat';
 import {
   ChevronDown,
   ListMusic,
@@ -10,7 +13,6 @@ import { GymSessionBar } from '../components/gym/GymSessionBar';
 import { useRoom } from '../app/RoomContext';
 import { CoachPanel } from '../components/CoachPanel';
 import { Effects } from '../components/Effects';
-import { ImportButton } from '../components/ImportButton';
 import { Mixer } from '../components/Mixer';
 import { ScoreCanvas } from '../components/ScoreCanvas';
 import { ScoreToolbar } from '../components/ScoreToolbar';
@@ -22,6 +24,17 @@ import { TunerControls } from '../components/TunerControls';
 
 export function PracticePage() {
   const r = useRoom();
+  const [chatOpen, setChatOpen] = useState(false);
+  if (r.library.empty)
+    return (
+      <div className="empty-state">
+        <h1>Your library is empty</h1>
+        <p>Discover, generate or import a piece to start playing.</p>
+        <button className="button button-dark" onClick={() => r.setPage('library')}>
+          Open library
+        </button>
+      </div>
+    );
   return (
     <div className="music-page">
       <div className="music-heading">
@@ -34,11 +47,20 @@ export function PracticePage() {
           >
             <ChevronDown size={18} />
           </button>
+          <PieceVersionSelect />
           <span className="music-meta">
             {r.library.piece.key} · {r.library.piece.bars} measures
           </span>
         </div>
-        <ImportButton compact />
+        <div className="music-heading-actions">
+          <button
+            className="button button-quiet"
+            aria-expanded={chatOpen}
+            onClick={() => setChatOpen(!chatOpen)}
+          >
+            <MessageSquare size={16} /> Edit with AI
+          </button>
+        </div>
       </div>
       {r.library.warnings.length > 0 && (
         <details className="import-details">
@@ -49,29 +71,32 @@ export function PracticePage() {
         </details>
       )}
       <GymSessionBar />
-      <section className="score-card" aria-label="Music and playback">
-        <ScoreToolbar />
-        <RecordingControls />
-        <ScoreCanvas />
-        <div className="practice-tools">
-          <PracticeTool label="Tuner" Icon={AudioLines}>
-            <TunerControls />
-          </PracticeTool>
-          <PracticeTool label="Mixer" Icon={SlidersHorizontal}>
-            <Mixer />
-          </PracticeTool>
-          <PracticeTool label="Effects" Icon={Waves}>
-            <Effects />
-          </PracticeTool>
-          <PracticeTool label="Passages" Icon={ListMusic}>
-            <SectionMap />
-          </PracticeTool>
-          <PracticeTool label="Feedback" Icon={MessageSquare}>
-            <CoachPanel />
-          </PracticeTool>
-        </div>
-        <Transport />
-      </section>
+      <div className={`score-workspace${chatOpen ? ' with-chat' : ''}`}>
+        <section className="score-card" aria-label="Music and playback">
+          <ScoreToolbar />
+          <RecordingControls />
+          <ScoreCanvas />
+          <div className="practice-tools">
+            <PracticeTool label="Tuner" Icon={AudioLines}>
+              <TunerControls />
+            </PracticeTool>
+            <PracticeTool label="Mixer" Icon={SlidersHorizontal}>
+              <Mixer />
+            </PracticeTool>
+            <PracticeTool label="Effects" Icon={Waves}>
+              <Effects />
+            </PracticeTool>
+            <PracticeTool label="Passages" Icon={ListMusic}>
+              <SectionMap />
+            </PracticeTool>
+            <PracticeTool label="Feedback" Icon={MessageSquare}>
+              <CoachPanel />
+            </PracticeTool>
+          </div>
+          <Transport />
+        </section>
+        {chatOpen && <ScoreChat onClose={() => setChatOpen(false)} />}
+      </div>
     </div>
   );
 }

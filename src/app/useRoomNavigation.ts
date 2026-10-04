@@ -30,9 +30,18 @@ export function useRoomNavigation(room: Room) {
       handledHash.current = window.location.hash;
       const r = latest.current;
       const route = readNavigation(window.location.hash);
-      const piece = r.library.pieces.find((p) => p.id === route.song) ?? r.library.pieces[0];
+      const piece =
+        r.library.pieces.find((p) => p.id === route.song) ??
+        r.library.pieces.find((p) => p.source !== 'exercise');
+      if (!piece) {
+        route.song = r.library.piece.id;
+        if (route.section === 'practice') route.section = 'library';
+        pending.current = { route, loading: false };
+        refresh((value) => value + 1);
+        return;
+      }
       if (piece.id !== route.song)
-        r.notify('That song is not in this browser’s library. Opened Evening study.');
+        r.notify(`That song is not in this browser’s library. Opened ${piece.title}.`);
       route.song = piece.id;
       const destination = { route, loading: r.library.piece.id !== piece.id };
       pending.current = destination;

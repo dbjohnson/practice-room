@@ -15,7 +15,7 @@ export function LatencyPanel() {
         </h2>
       </div>
       <p className="setup-description">
-        Sound takes time to reach you and come back. Record take removes that delay before judging
+        Sound takes time to reach you and come back. Recording removes that delay before judging
         your timing, so it needs to know how long it is.
       </p>
       <div className="latency-readout" aria-live="polite">

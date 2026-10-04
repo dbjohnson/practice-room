@@ -7,20 +7,19 @@ export function CoachPanel() {
     <section className="feedback-panel" aria-label="Practice feedback">
       <h2>Check your take</h2>
       <p>
-        Connect your instrument, select Record take, then record the passage. Feedback compares
-        clean single notes and timing with the written part.
+        Connect your instrument and press Play to record the passage. Feedback compares clean single
+        notes and timing with the written part.
       </p>
       <div className="feedback-actions">
         <button
           className="button button-primary"
           disabled={r.takes.recording}
           onClick={() => {
-            r.setMode('assess');
-            if (r.inputConnected)
-              r.notify('Record take is selected. Press record when you’re ready.');
+            if (r.inputConnected) r.play();
+            else r.setPage('instrument');
           }}
         >
-          Set up a take
+          {r.inputConnected ? 'Play and record' : 'Connect instrument'}
         </button>
         <button
           className="text-button"

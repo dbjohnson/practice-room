@@ -3,7 +3,13 @@ import { Upload, LoaderCircle } from 'lucide-react';
 import { useRoom } from '../app/RoomContext';
 import { importExtensions } from '../music/importScore';
 
-export function ImportButton({ compact = false }: { compact?: boolean }) {
+export function ImportButton({
+  compact = false,
+  onAdded,
+}: {
+  compact?: boolean;
+  onAdded?: () => void;
+}) {
   const room = useRoom();
   const ref = useRef<HTMLInputElement>(null);
   return (
@@ -27,7 +33,10 @@ export function ImportButton({ compact = false }: { compact?: boolean }) {
           e.target.value = '';
           if (!file) return;
           room.halt();
-          if (await room.library.upload(file)) room.setPage('practice');
+          if (await room.library.upload(file)) {
+            if (onAdded) onAdded();
+            else room.setPage('practice');
+          }
         }}
       />
     </>

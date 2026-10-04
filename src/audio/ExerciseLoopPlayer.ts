@@ -1,3 +1,5 @@
+import { TrackLoopSources, type LoopStem, type LoopMix } from './TrackLoopSources';
+import type { LoopTiming } from './loopMidi';
 import clickUrl from './assets/woody-block.wav?url';
 import { loopClickBuffer } from './loopClickBuffer';
 
@@ -5,22 +7,44 @@ export interface LoopPosition {
   tick: number;
   origin: number;
   pass: number;
+  time?: number;
 }
 
 /** One native looping source owns all wrap points; JS only observes its clock. */
 export class ExerciseLoopPlayer {
+  private usingStems = false;
   private source: AudioBufferSourceNode | null = null;
   private clicks: AudioBufferSourceNode[] = [];
   private frame = 0;
   private start = 0;
   private origin = 0;
   private pass = 0;
+  private duration = 0;
+  private endAfterPass = Infinity;
   private click: AudioBuffer | null = null;
   private metronome: AudioBufferSourceNode | null = null;
   private clickGain: GainNode | null = null;
   private clickEnabled = false;
+  private clickVolume = 55;
 
-  constructor(readonly context: AudioContext) {}
+  private tracks: TrackLoopSources;
+
+  constructor(readonly context: AudioContext) {
+    this.tracks = new TrackLoopSources(context);
+  }
+
+  setLooping(looping: boolean) {
+    this.endAfterPass = looping
+      ? Infinity
+      : Math.max(1, Math.floor((this.context.currentTime - this.start) / this.duration) + 1);
+    if (this.source) this.source.loop = looping;
+    if (this.metronome) this.metronome.loop = looping;
+    this.tracks.setLooping(looping);
+  }
+
+  setMix(mix: LoopMix) {
+    this.tracks.setMix(mix);
+  }
 
   async prepareClick(signal: AbortSignal) {
     if (this.click) return;
@@ -29,12 +53,13 @@ export class ExerciseLoopPlayer {
     this.click = await this.context.decodeAudioData(await response.arrayBuffer());
   }
 
-  setClick(enabled: boolean) {
+  setClick(enabled: boolean, volume = this.clickVolume) {
     this.clickEnabled = enabled;
+    this.clickVolume = Math.max(0, Math.min(100, volume));
     if (this.clickGain) {
       const gain = this.clickGain.gain;
       gain.cancelScheduledValues(this.context.currentTime);
-      gain.setTargetAtTime(enabled ? 0.55 : 0, this.context.currentTime, 0.003);
+      gain.setTargetAtTime(enabled ? this.clickVolume / 100 : 0, this.context.currentTime, 0.003);
     }
   }
 
@@ -46,70 +71,124 @@ export class ExerciseLoopPlayer {
     onPosition: (position: LoopPosition) => void,
     onPass: (ended: number) => void,
     onBeat?: (at: number) => void,
+    timing?: LoopTiming,
+    stems?: LoopStem[],
+    mix: LoopMix = { muted: [], volumes: {} },
+    offset = 0,
+    onEnded?: () => void,
   ) {
     this.stop();
     this.pass = 0;
+    this.duration = buffer.duration;
+    this.endAfterPass = Infinity;
     const lead = 0.05;
-    this.start = this.context.currentTime + lead + (countIn ? (4 * 60) / bpm : 0);
+    const countBeats = timing?.countInBeats ?? 4;
+    const countStep = timing?.countInBeatDuration ?? 60 / bpm;
+    this.start = this.context.currentTime + lead + (countIn ? countBeats * countStep : 0);
+    const sourceStart = this.start;
+    this.start -= offset;
     this.origin = performance.now() / 1000 + this.start - this.context.currentTime;
+    if (this.click) {
+      this.clickGain = this.context.createGain();
+      this.clickGain.gain.value = this.clickEnabled ? this.clickVolume / 100 : 0;
+      this.clickGain.connect(this.context.destination);
+    }
     if (countIn && this.click)
-      for (let beat = 0; beat < 4; beat++) {
+      for (let beat = 0; beat < countBeats; beat++) {
         const node = this.context.createBufferSource();
         node.buffer = this.click;
-        node.connect(this.context.destination);
-        node.start(this.start - ((4 - beat) * 60) / bpm);
+        node.connect(this.clickGain!);
+        node.start(this.start - (countBeats - beat) * countStep);
         this.clicks.push(node);
       }
-    const source = this.context.createBufferSource();
-    source.buffer = buffer;
-    source.loop = true;
-    source.loopStart = 0;
-    source.loopEnd = buffer.duration;
-    source.connect(this.context.destination);
-    source.start(this.start);
+    const source = stems
+      ? this.tracks.start(stems, sourceStart, mix, offset)!
+      : this.context.createBufferSource();
+    if (!stems) {
+      source.buffer = buffer;
+      source.loop = true;
+      source.loopStart = 0;
+      source.loopEnd = buffer.duration;
+      source.connect(this.context.destination);
+      if (offset) source.start(sourceStart, offset);
+      else source.start(sourceStart);
+    }
     this.source = source;
+    source.onended = () => {
+      if (this.source !== source || this.endAfterPass === Infinity) return;
+      this.stop();
+      onEnded?.();
+    };
+    this.usingStems = !!stems;
     const beats = endTick / 960;
     const beatDuration = buffer.duration / beats;
     if (this.click) {
-      const gain = this.context.createGain();
-      gain.gain.value = this.clickEnabled ? 0.55 : 0;
-      gain.connect(this.context.destination);
+      const gain = this.clickGain!;
       const metronome = this.context.createBufferSource();
-      metronome.buffer = loopClickBuffer(this.context, this.click, buffer.length, beats);
+      metronome.buffer = loopClickBuffer(
+        this.context,
+        this.click,
+        buffer.length,
+        beats,
+        timing?.beatTimes,
+      );
       metronome.loop = true;
       metronome.loopStart = 0;
       metronome.loopEnd = buffer.duration;
       metronome.connect(gain);
-      metronome.start(this.start);
+      if (offset) metronome.start(sourceStart, offset);
+      else metronome.start(sourceStart);
       this.metronome = metronome;
       this.clickGain = gain;
     }
     // Establish the exact first origin even if the tab's animation frames stall.
-    onPosition({ tick: 0, origin: this.origin, pass: 0 });
+    onPosition({
+      tick: timing?.tickAt(offset) ?? 0,
+      origin: this.origin,
+      pass: 0,
+      time: this.origin + offset,
+    });
     let lastBeat = -5;
     const update = () => {
       if (this.source !== source) return;
       const elapsed = this.context.currentTime - this.start;
+      const cycle = Math.floor(elapsed / buffer.duration);
+      const localTime = elapsed - cycle * buffer.duration;
+      const times = timing?.beatTimes;
+      const localBeat = times
+        ? times.reduce((found, time, index) => (time <= localTime ? index : found), -1)
+        : Math.floor(localTime / beatDuration);
       const beat =
-        elapsed < 0 ? Math.floor(elapsed / (60 / bpm)) : Math.floor(elapsed / beatDuration);
-      if (beat !== lastBeat && (elapsed >= 0 || (countIn && beat >= -4))) {
+        elapsed < 0
+          ? Math.floor(elapsed / countStep)
+          : cycle * (times?.length ?? beats) + localBeat;
+      if (beat !== lastBeat && (elapsed >= 0 || (countIn && beat >= -countBeats))) {
         lastBeat = beat;
-        onBeat?.(this.origin + beat * (elapsed < 0 ? 60 / bpm : beatDuration));
+        onBeat?.(
+          this.origin +
+            (elapsed < 0
+              ? beat * countStep
+              : cycle * buffer.duration + (times?.[localBeat] ?? localBeat * beatDuration)),
+        );
       }
       if (elapsed >= 0) {
         const pass = Math.floor(elapsed / buffer.duration);
+        if (pass >= this.endAfterPass) return;
         while (this.pass < pass) {
           this.pass++;
           onPass(this.origin + this.pass * buffer.duration);
           if (this.source !== source) return;
         }
         onPosition({
-          tick: Math.min(
-            endTick - 1,
-            Math.floor(((elapsed % buffer.duration) / buffer.duration) * endTick),
-          ),
+          tick:
+            timing?.tickAt(elapsed % buffer.duration) ??
+            Math.min(
+              endTick - 1,
+              Math.floor(((elapsed % buffer.duration) / buffer.duration) * endTick),
+            ),
           origin: this.origin + pass * buffer.duration,
           pass,
+          time: this.origin + elapsed,
         });
       }
       this.frame = requestAnimationFrame(update);
@@ -119,11 +198,12 @@ export class ExerciseLoopPlayer {
 
   stop() {
     cancelAnimationFrame(this.frame);
-    if (this.source) {
+    this.tracks.stop();
+    if (this.source && !this.usingStems) {
       this.source.stop();
       this.source.disconnect();
-      this.source = null;
     }
+    this.source = null;
     for (const click of this.clicks) {
       click.stop();
       click.disconnect();

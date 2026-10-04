@@ -24,9 +24,10 @@ export function HelpDialog() {
         <p>
           <AudioLines size={17} />
           <span>
-            <strong>Playback modes</strong>Listen to the band, mute your part with Play along, or
-            use Record take to capture audio and see its waveform on the score. Replay includes the
-            backing track by default. Space starts and pauses playback.
+            <strong>Playback and recording</strong>Press Play to hear the score. With an instrument
+            connected, Play also records your take and shows its waveform. Adjust each track’s
+            volume, mute or solo in the mixer. Replay includes the backing track by default. Space
+            starts and pauses playback.
           </span>
         </p>
         <p>

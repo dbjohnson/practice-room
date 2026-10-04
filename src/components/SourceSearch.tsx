@@ -57,7 +57,6 @@ export function SourceSearch({
         <label className="search-input">
           <Search size={17} />
           <input
-            autoFocus
             aria-label="Search music catalogues"
             value={query}
             onChange={(e) => setQuery(e.target.value)}

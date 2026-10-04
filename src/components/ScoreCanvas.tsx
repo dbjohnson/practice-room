@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { useRoom } from '../app/RoomContext';
 import { useScorePlayer } from '../audio/useScorePlayer';
@@ -5,6 +6,12 @@ import { TakeWaveform } from './TakeWaveform';
 
 export function ScoreCanvas() {
   const r = useRoom();
+  const beat = r.player.beatAt;
+  const flashing = r.flash && r.player.playing && beat !== undefined;
+  const delay = useMemo(
+    () => (beat === undefined ? 0 : Math.max(0, performance.now() - beat)),
+    [beat, flashing],
+  );
   const host = useScorePlayer({
     score: r.library.score,
     exerciseArticulation: r.library.piece.gymSet?.articulation,
@@ -17,8 +24,9 @@ export function ScoreCanvas() {
     zoom: r.zoom,
     mode: r.mode,
     click: r.click,
+    clickVolume: r.clickVolume,
     countIn: r.countIn,
-    muted: r.muted,
+    muted: r.effectiveMuted,
     routed: r.midiOut.routed,
     onMidi: r.midiOut.onMidi,
     volumes: r.volumes,
@@ -48,21 +56,31 @@ export function ScoreCanvas() {
     },
   });
   return (
-    <div className="score-paper" aria-label="Interactive sheet music and tablature">
-      {r.player.rendering && (
-        <div className="score-loading">
-          <LoaderCircle size={18} className="spin" />
-          Setting out your music…
-        </div>
+    <div className="score-frame">
+      {flashing && (
+        <div
+          key={beat}
+          className="score-beat-border"
+          style={{ animationDelay: `-${delay}ms` }}
+          aria-hidden="true"
+        />
       )}
-      {r.player.error && (
-        <div className="notice notice-error" role="alert">
-          {r.player.error}
+      <div className="score-paper" aria-label="Interactive sheet music and tablature">
+        {r.player.rendering && (
+          <div className="score-loading">
+            <LoaderCircle size={18} className="spin" />
+            Setting out your music…
+          </div>
+        )}
+        {r.player.error && (
+          <div className="notice notice-error" role="alert">
+            {r.player.error}
+          </div>
+        )}
+        <div className="score-content">
+          <div ref={host} className="notation-host" />
+          <TakeWaveform />
         </div>
-      )}
-      <div className="score-content">
-        <div ref={host} className="notation-host" />
-        <TakeWaveform />
       </div>
     </div>
   );

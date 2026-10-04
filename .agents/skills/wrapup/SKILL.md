@@ -18,3 +18,8 @@ After actual merge and the user's authorization to close the work, run
 `npm run workspace -- stop` in this worktree. Remove a linked worktree/branch
 only after checking that no uncommitted or unmerged work remains. Do not remove
 the primary checkout. Production service changes are separate authorized work.
+
+Once closure is authorized, verify `npm run workspace -- list` no longer includes
+the completed session. From another checkout, `npm run workspace -- cleanup`
+previews clean, merged worktrees; `cleanup --apply` stops and removes only those
+eligible worktrees while keeping branches. Never treat opening a PR as closure.
